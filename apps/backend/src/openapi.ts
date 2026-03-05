@@ -12,7 +12,14 @@ export const openApiSpec = {
     contact: { name: 'ATS AI Support' },
   },
   servers: [
-    { url: 'http://localhost:8787', description: 'Local dev' },
+    {
+      url: 'https://ats-ai.workspace-infoga.workers.dev',
+      description: 'Production',
+    },
+    {
+      url: 'http://localhost:8787',
+      description: 'Local development',
+    },
   ],
   tags: [
     { name: 'Auth', description: 'Authentication & password management' },
