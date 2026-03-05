@@ -1,0 +1,23 @@
+{
+  "name": "ats-ai-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:migrate:auth": "node scripts/migrate-auth.mjs"
+  },
+  "dependencies": {
+    "@hono/swagger-ui": "^0.5.3",
+    "@neondatabase/serverless": "^0.10.0",
+    "dotenv": "^17.3.1",
+    "hono": "^4.4.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240529.0",
+    "typescript": "^5.5.0",
+    "wrangler": "^4.69.0"
+  }
+}
