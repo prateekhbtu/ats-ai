@@ -4,7 +4,7 @@
  */
 
 import { queryOne } from './db.service.js';
-import { callLlm } from './llm.service.js';
+import { callLlm, getLlmConfig } from './llm.service.js';
 import { buildJdParsePrompt } from '../utils/prompt-builder.js';
 import { validateJsonResponse, validateJdExtractedData } from '../utils/response-validator.js';
 import { checkForInjection, enforceTextBoundary, sanitizeText } from '../utils/injection-guard.js';
@@ -77,7 +77,7 @@ function cleanHtml(html: string): string {
 /**
  * Extract structured data from JD text using LLM.
  */
-async function extractJdData(rawText: string, apiKey: string): Promise<JdExtractedData> {
+async function extractJdData(rawText: string, config: import('../types/index.js').LlmConfig): Promise<JdExtractedData> {
   if (!rawText || rawText.trim().length < 30) {
     throw new ValidationError('Job description text is too short or empty');
   }
@@ -88,7 +88,7 @@ async function extractJdData(rawText: string, apiKey: string): Promise<JdExtract
 
   const prompt = buildJdParsePrompt(textToProcess);
 
-  const llmResponse = await callLlm(apiKey, {
+  const llmResponse = await callLlm(config, {
     prompt: prompt.user,
     system_instruction: prompt.system,
     temperature: 0.1,
@@ -143,7 +143,7 @@ export async function processJobDescription(
     rawText = sanitizeText(input.text!);
   }
 
-  const extractedData = await extractJdData(rawText, env.GEMINI_API_KEY);
+  const extractedData = await extractJdData(rawText, getLlmConfig(env));
 
   const jd = await queryOne<JdRow>(
     env.DATABASE_URL,

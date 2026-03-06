@@ -6,7 +6,7 @@
 import { queryOne } from './db.service.js';
 import { getResumeById } from './resume-parser.service.js';
 import { getJdById } from './jd-parser.service.js';
-import { callLlm } from './llm.service.js';
+import { callLlm, getLlmConfig } from './llm.service.js';
 import { computeUniScore } from '../utils/scoring-engine.js';
 import { buildStrengthsWeaknessesPrompt } from '../utils/prompt-builder.js';
 import { validateJsonResponse, validateStrengthsWeaknesses } from '../utils/response-validator.js';
@@ -31,7 +31,7 @@ export async function computeAndStoreUniScore(
     resume.sections,
     jd.extracted_data,
     scoringResult.breakdown,
-    env.GEMINI_API_KEY
+    getLlmConfig(env)
   );
 
   // Store analysis
@@ -67,12 +67,12 @@ async function generateStrengthsWeaknesses(
   sections: import('../types/index.js').ResumeSections,
   jdData: import('../types/index.js').JdExtractedData,
   breakdown: import('../types/index.js').ScoreBreakdown,
-  apiKey: string
+  config: import('../types/index.js').LlmConfig
 ): Promise<{ strengths: string[]; weaknesses: string[] }> {
   try {
     const prompt = buildStrengthsWeaknessesPrompt(sections, jdData, breakdown);
 
-    const llmResponse = await callLlm(apiKey, {
+    const llmResponse = await callLlm(config, {
       prompt: prompt.user,
       system_instruction: prompt.system,
       temperature: 0.3,

@@ -6,7 +6,7 @@
 import { queryOne } from './db.service.js';
 import { getResumeById } from './resume-parser.service.js';
 import { getJdById } from './jd-parser.service.js';
-import { callLlm } from './llm.service.js';
+import { callLlm, getLlmConfig } from './llm.service.js';
 import { buildResumeEnhancePrompt, buildResumeRefinePrompt } from '../utils/prompt-builder.js';
 import { validateJsonResponse, validateResumeSections } from '../utils/response-validator.js';
 import { checkHallucinations } from '../utils/hallucination-checker.js';
@@ -164,7 +164,7 @@ export async function refineResume(
   // Build refinement prompt
   const prompt = buildResumeRefinePrompt(currentSections, original.sections, instructions);
 
-  const llmResponse = await callLlm(env.GEMINI_API_KEY, {
+const llmResponse = await callLlm(getLlmConfig(env), {
     prompt: prompt.user,
     system_instruction: prompt.system,
     temperature: 0.3,

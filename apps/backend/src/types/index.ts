@@ -2,6 +2,8 @@
 export interface Env {
   DATABASE_URL: string;
   GEMINI_API_KEY: string;
+  USE_LLM_PROXY: string;      // "true" | "false"
+  LLM_PROXY_URL: string;      // e.g. https://test-gemini.onrender.com/generate
   GOOGLE_CLIENT_ID: string;
   JWT_SECRET: string;
   RESEND_API_KEY: string;
@@ -12,6 +14,13 @@ export interface Env {
   CLOUDINARY_API_SECRET: string;
   FRONTEND_URL: string;
   ENVIRONMENT: string;
+}
+
+// ─── LLM Configuration ────────────────────────────────────────────
+export interface LlmConfig {
+  useProxy: boolean;
+  apiKey: string;
+  proxyUrl: string;
 }
 
 // ─── Database Row Types ────────────────────────────────────────────

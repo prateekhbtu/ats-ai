@@ -4,7 +4,7 @@
  */
 
 import { queryOne } from './db.service.js';
-import { callLlm } from './llm.service.js';
+import { callLlm, getLlmConfig } from './llm.service.js';
 import { buildResumeParsePrompt } from '../utils/prompt-builder.js';
 import { validateJsonResponse, validateResumeSections } from '../utils/response-validator.js';
 import { checkForInjection, enforceTextBoundary } from '../utils/injection-guard.js';
@@ -131,7 +131,7 @@ export function extractTextFromDocx(buffer: ArrayBuffer): string {
 /**
  * Parse extracted text into structured resume sections using LLM.
  */
-export async function parseResumeSections(rawText: string, apiKey: string): Promise<ResumeSections> {
+export async function parseResumeSections(rawText: string, config: import('../types/index.js').LlmConfig): Promise<ResumeSections> {
   if (!rawText || rawText.trim().length < 50) {
     throw new ValidationError('Resume text is too short or empty. Please upload a valid resume file.');
   }
@@ -143,7 +143,7 @@ export async function parseResumeSections(rawText: string, apiKey: string): Prom
 
   const prompt = buildResumeParsePrompt(textToProcess);
 
-  const llmResponse = await callLlm(apiKey, {
+  const llmResponse = await callLlm(config, {
     prompt: prompt.user,
     system_instruction: prompt.system,
     temperature: 0.1,
@@ -215,7 +215,7 @@ export async function uploadAndParseResume(
     throw new ValidationError('Could not extract sufficient text from the uploaded file. Please ensure the file contains readable text.');
   }
 
-  const sections = await parseResumeSections(rawText, env.GEMINI_API_KEY);
+  const sections = await parseResumeSections(rawText, getLlmConfig(env));
 
   const resume = await queryOne<ResumeRow>(
     env.DATABASE_URL,

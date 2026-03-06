@@ -5,6 +5,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../types/index.js';
 import { analyzeWriting } from '../services/writing.service.js';
+import { getLlmConfig } from '../services/llm.service.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { llmRateLimiter } from '../middleware/rate-limiter.middleware.js';
 import { ValidationError } from '../middleware/error-handler.middleware.js';
@@ -33,7 +34,7 @@ writingRoutes.post('/analyze', llmRateLimiter(), async (c) => {
     throw new ValidationError('Text must not exceed 50000 characters');
   }
 
-  const result = await analyzeWriting(body.text, c.env.GEMINI_API_KEY);
+  const result = await analyzeWriting(body.text, getLlmConfig(c.env));
 
   return c.json(result, 200);
 });

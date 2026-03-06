@@ -4,7 +4,7 @@
 
 import { getResumeById } from './resume-parser.service.js';
 import { getJdById } from './jd-parser.service.js';
-import { callLlm } from './llm.service.js';
+import { callLlm, getLlmConfig } from './llm.service.js';
 import { buildInterviewQuestionsPrompt } from '../utils/prompt-builder.js';
 import { validateJsonResponse, validateInterviewQuestions } from '../utils/response-validator.js';
 import type { InterviewQuestion, Env } from '../types/index.js';
@@ -30,7 +30,7 @@ export async function generateInterviewQuestions(
 
   const prompt = buildInterviewQuestionsPrompt(resume.sections, jd.extracted_data);
 
-  const llmResponse = await callLlm(env.GEMINI_API_KEY, {
+  const llmResponse = await callLlm(getLlmConfig(env), {
     prompt: prompt.user,
     system_instruction: prompt.system,
     temperature: 0.5,

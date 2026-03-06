@@ -4,6 +4,7 @@
  */
 
 import { callLlm } from './llm.service.js';
+import type { LlmConfig } from '../types/index.js';
 import { buildWritingAnalysisPrompt } from '../utils/prompt-builder.js';
 import { validateJsonResponse, validateWritingAnalysis } from '../utils/response-validator.js';
 import { checkForInjection, enforceTextBoundary } from '../utils/injection-guard.js';
@@ -118,7 +119,7 @@ function detectDeterministicIssues(text: string): WritingIssue[] {
  * Analyze text for writing quality issues.
  * Combines deterministic detection with LLM-powered suggestions.
  */
-export async function analyzeWriting(text: string, apiKey: string): Promise<WritingAnalysisResult> {
+export async function analyzeWriting(text: string, config: LlmConfig): Promise<WritingAnalysisResult> {
   if (!text || text.trim().length < 20) {
     throw new ValidationError('Text must be at least 20 characters for analysis');
   }
@@ -143,7 +144,7 @@ export async function analyzeWriting(text: string, apiKey: string): Promise<Writ
 
     const prompt = buildWritingAnalysisPrompt(textToAnalyze, simplifiedDeterministic);
 
-    const llmResponse = await callLlm(apiKey, {
+    const llmResponse = await callLlm(config, {
       prompt: prompt.user,
       system_instruction: prompt.system,
       temperature: 0.3,

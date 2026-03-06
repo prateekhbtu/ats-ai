@@ -8,7 +8,9 @@ ENVIRONMENT = "production"
 
 # Secrets (set via `wrangler secret put`):
 # DATABASE_URL - NeonDB connection string
-# GEMINI_API_KEY - Google Gemini API key
+# GEMINI_API_KEY - Google Gemini API key (used when USE_LLM_PROXY != "true")
+# USE_LLM_PROXY - "true" to use hosted LLM proxy, "false" for direct Gemini API
+# LLM_PROXY_URL - Hosted LLM proxy endpoint URL
 # GOOGLE_CLIENT_ID - Google OAuth Client ID
 # JWT_SECRET - JWT signing secret
 # RESEND_API_KEY - Resend email service API key

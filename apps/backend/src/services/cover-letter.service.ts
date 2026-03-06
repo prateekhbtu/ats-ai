@@ -5,7 +5,7 @@
 import { queryOne } from './db.service.js';
 import { getResumeById } from './resume-parser.service.js';
 import { getJdById } from './jd-parser.service.js';
-import { callLlm } from './llm.service.js';
+import { callLlm, getLlmConfig } from './llm.service.js';
 import { buildCoverLetterPrompt } from '../utils/prompt-builder.js';
 import { validateJsonResponse, validateCoverLetterResponse } from '../utils/response-validator.js';
 import type { CoverLetterRow, CoverLetterTone, Env } from '../types/index.js';
@@ -32,7 +32,7 @@ export async function generateCoverLetter(
 
   const prompt = buildCoverLetterPrompt(resume.sections, jd.extracted_data, tone, template);
 
-  const llmResponse = await callLlm(env.GEMINI_API_KEY, {
+  const llmResponse = await callLlm(getLlmConfig(env), {
     prompt: prompt.user,
     system_instruction: prompt.system,
     temperature: 0.5,
