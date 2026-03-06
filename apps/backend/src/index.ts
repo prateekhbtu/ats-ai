@@ -75,29 +75,6 @@ timestamp: new Date().toISOString(),
 app.get('/health', (c) => {
 return c.json({ status: 'ok' })
 })
-
-// Debug: check which env vars are set (shows true/false, never the actual values)
-app.get('/debug/env', (c) => {
-  const check = (key: string) => {
-    const val = (c.env as Record<string, string | undefined>)[key];
-    return val ? `✅ set (${val.length} chars)` : '❌ MISSING';
-  };
-  return c.json({
-    DATABASE_URL: check('DATABASE_URL'),
-    GEMINI_API_KEY: check('GEMINI_API_KEY'),
-    GOOGLE_CLIENT_ID: check('GOOGLE_CLIENT_ID'),
-    JWT_SECRET: check('JWT_SECRET'),
-    RESEND_API_KEY: check('RESEND_API_KEY'),
-    RESEND_FROM_EMAIL: check('RESEND_FROM_EMAIL'),
-    RESEND_FROM_NAME: check('RESEND_FROM_NAME'),
-    CLOUDINARY_CLOUD_NAME: check('CLOUDINARY_CLOUD_NAME'),
-    CLOUDINARY_API_KEY: check('CLOUDINARY_API_KEY'),
-    CLOUDINARY_API_SECRET: check('CLOUDINARY_API_SECRET'),
-    FRONTEND_URL: check('FRONTEND_URL'),
-    ENVIRONMENT: check('ENVIRONMENT'),
-  });
-})
-
 // ─────────────────────────────────────────────────────────────
 // OpenAPI Spec + Swagger UI
 // ─────────────────────────────────────────────────────────────
