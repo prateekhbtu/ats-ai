@@ -77,14 +77,11 @@ export function errorHandler(err: Error, c: Context<{ Bindings: Env; Variables: 
     );
   }
 
-  // Include real error info for debugging (safe: only name + message, no stack)
-  const debugMessage = `${err.name || 'Error'}: ${err.message || 'Unknown error'}`;
-
   return c.json(
     {
       error: 'Internal server error',
       code: 'INTERNAL_ERROR',
-      debug: debugMessage,
+      message: err.message,
     },
     500
   );

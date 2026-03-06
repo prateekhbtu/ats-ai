@@ -76,6 +76,28 @@ app.get('/health', (c) => {
 return c.json({ status: 'ok' })
 })
 
+// Debug: check which env vars are set (shows true/false, never the actual values)
+app.get('/debug/env', (c) => {
+  const check = (key: string) => {
+    const val = (c.env as Record<string, string | undefined>)[key];
+    return val ? `✅ set (${val.length} chars)` : '❌ MISSING';
+  };
+  return c.json({
+    DATABASE_URL: check('DATABASE_URL'),
+    GEMINI_API_KEY: check('GEMINI_API_KEY'),
+    GOOGLE_CLIENT_ID: check('GOOGLE_CLIENT_ID'),
+    JWT_SECRET: check('JWT_SECRET'),
+    RESEND_API_KEY: check('RESEND_API_KEY'),
+    RESEND_FROM_EMAIL: check('RESEND_FROM_EMAIL'),
+    RESEND_FROM_NAME: check('RESEND_FROM_NAME'),
+    CLOUDINARY_CLOUD_NAME: check('CLOUDINARY_CLOUD_NAME'),
+    CLOUDINARY_API_KEY: check('CLOUDINARY_API_KEY'),
+    CLOUDINARY_API_SECRET: check('CLOUDINARY_API_SECRET'),
+    FRONTEND_URL: check('FRONTEND_URL'),
+    ENVIRONMENT: check('ENVIRONMENT'),
+  });
+})
+
 // ─────────────────────────────────────────────────────────────
 // OpenAPI Spec + Swagger UI
 // ─────────────────────────────────────────────────────────────
@@ -98,45 +120,6 @@ description: 'Current environment',
 
 // Swagger UI
 app.get('/docs', swaggerUI({ url: '/openapi.json' }))
-
-// ─────────────────────────────────────────────────────────────
-// Debug (remove after verifying production setup)
-// ─────────────────────────────────────────────────────────────
-
-app.get('/debug/env', (c) => {
-  const check = (key: string, val: unknown) => {
-    if (!val || (typeof val === 'string' && val.trim() === '')) return 'MISSING'
-    const s = String(val)
-    return `SET (${s.length} chars, starts: ${s.slice(0, 4)}...)`
-  }
-
-  return c.json({
-    DATABASE_URL: check('DATABASE_URL', c.env.DATABASE_URL),
-    GEMINI_API_KEY: check('GEMINI_API_KEY', c.env.GEMINI_API_KEY),
-    GOOGLE_CLIENT_ID: check('GOOGLE_CLIENT_ID', c.env.GOOGLE_CLIENT_ID),
-    JWT_SECRET: check('JWT_SECRET', c.env.JWT_SECRET),
-    RESEND_API_KEY: check('RESEND_API_KEY', c.env.RESEND_API_KEY),
-    RESEND_FROM_EMAIL: check('RESEND_FROM_EMAIL', c.env.RESEND_FROM_EMAIL),
-    RESEND_FROM_NAME: check('RESEND_FROM_NAME', c.env.RESEND_FROM_NAME),
-    CLOUDINARY_CLOUD_NAME: check('CLOUDINARY_CLOUD_NAME', c.env.CLOUDINARY_CLOUD_NAME),
-    CLOUDINARY_API_KEY: check('CLOUDINARY_API_KEY', c.env.CLOUDINARY_API_KEY),
-    CLOUDINARY_API_SECRET: check('CLOUDINARY_API_SECRET', c.env.CLOUDINARY_API_SECRET),
-    FRONTEND_URL: check('FRONTEND_URL', c.env.FRONTEND_URL),
-    ENVIRONMENT: check('ENVIRONMENT', c.env.ENVIRONMENT),
-  })
-})
-
-app.get('/debug/db', async (c) => {
-  try {
-    const { freshDb } = await import('./services/db.service.js')
-    const sql = freshDb(c.env.DATABASE_URL)
-    const result = await sql('SELECT NOW() as time, current_database() as db')
-    return c.json({ status: 'connected', result })
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err)
-    return c.json({ status: 'failed', error: message }, 500)
-  }
-})
 
 // ─────────────────────────────────────────────────────────────
 // API Routes

@@ -7,7 +7,7 @@ import type { LlmRequest, LlmResponse } from '../types/index.js';
 import { LlmError } from '../middleware/error-handler.middleware.js';
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const DEFAULT_MODEL = 'gemini-1.5-flash';
+const DEFAULT_MODEL = 'gemini-2.0-flash';
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 1000;
 const REQUEST_TIMEOUT = 60_000;
