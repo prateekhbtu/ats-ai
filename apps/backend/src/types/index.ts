@@ -1,9 +1,7 @@
 // ─── Environment Bindings ──────────────────────────────────────────
 export interface Env {
   DATABASE_URL: string;
-  GEMINI_API_KEY: string;
-  USE_LLM_PROXY?: string;     // Deprecated – kept for backward compat, no longer used
-  LLM_PROXY_URL?: string;     // If set, proxy is used automatically; overrides GEMINI_API_KEY
+  LLM_PROXY_URL: string;      // Hosted Vertex AI proxy endpoint (required)
   GOOGLE_CLIENT_ID: string;
   JWT_SECRET: string;
   RESEND_API_KEY: string;
@@ -18,9 +16,7 @@ export interface Env {
 
 // ─── LLM Configuration ────────────────────────────────────────────
 export interface LlmConfig {
-  useProxy: boolean;
-  apiKey: string;
-  proxyUrl: string;
+  proxyUrl: string;   // Hosted Vertex AI proxy endpoint
 }
 
 // ─── Database Row Types ────────────────────────────────────────────

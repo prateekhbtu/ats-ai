@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Layers, ArrowLeft, CheckCircle2, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { GoogleSignInButton } from '../components/GoogleSignInButton';
 
 const FEATURES = [
   'Detailed ATS Scoring & Feedback',
@@ -180,14 +181,11 @@ export function Signup() {
               <div className="flex-grow border-t border-white/10" />
             </div>
 
-            <button className="w-full bg-white text-gray-900 py-3 px-4 rounded-xl font-medium flex items-center justify-center gap-3 hover:bg-gray-100 transition-all shadow-sm">
-              <img
-                src="https://www.svgrepo.com/show/475656/google-color.svg"
-                alt="Google"
-                className="w-5 h-5"
-              />
-              Sign up with Google
-            </button>
+            <GoogleSignInButton
+              variant="signup"
+              redirectTo="/dashboard"
+              onError={(msg) => setError(msg)}
+            />
 
             <p className="text-center text-xs text-gray-500 leading-relaxed mt-4">
               By signing up you agree to our{' '}

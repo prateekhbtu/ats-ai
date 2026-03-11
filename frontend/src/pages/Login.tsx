@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Layers, ArrowLeft, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { GoogleSignInButton } from '../components/GoogleSignInButton';
 
 export function Login() {
   const navigate = useNavigate();
@@ -143,14 +144,11 @@ export function Login() {
             <div className="flex-grow border-t border-gray-200" />
           </div>
 
-          <button className="w-full bg-white border border-gray-200 text-gray-900 py-3 px-4 rounded-xl font-medium flex items-center justify-center gap-3 hover:bg-gray-50 transition-all shadow-sm">
-            <img
-              src="https://www.svgrepo.com/show/475656/google-color.svg"
-              alt="Google"
-              className="w-5 h-5"
-            />
-            Continue with Google
-          </button>
+          <GoogleSignInButton
+            variant="signin"
+            redirectTo={from}
+            onError={(msg) => setError(msg)}
+          />
 
           <div className="mt-8 text-center text-sm text-gray-600">
             Don't have an account?{' '}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { History, FileText, ArrowRight, RotateCcw, Loader2, AlertCircle, ChevronDown } from 'lucide-react';
 import { DashboardLayout } from '../layouts/DashboardLayout';

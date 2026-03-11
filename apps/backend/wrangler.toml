@@ -7,16 +7,14 @@ compatibility_flags = ["nodejs_compat"]
 ENVIRONMENT = "production"
 
 # Secrets (set via `wrangler secret put`):
-# DATABASE_URL - NeonDB connection string
-# GEMINI_API_KEY - Google Gemini API key (used when USE_LLM_PROXY != "true")
-# USE_LLM_PROXY - "true" to use hosted LLM proxy, "false" for direct Gemini API
-# LLM_PROXY_URL - Hosted LLM proxy endpoint URL
-# GOOGLE_CLIENT_ID - Google OAuth Client ID
-# JWT_SECRET - JWT signing secret
-# RESEND_API_KEY - Resend email service API key
+# DATABASE_URL      - NeonDB connection string
+# LLM_PROXY_URL     - Hosted Vertex AI proxy endpoint URL
+# GOOGLE_CLIENT_ID  - Google OAuth Client ID
+# JWT_SECRET        - JWT signing secret
+# RESEND_API_KEY    - Resend email service API key
 # RESEND_FROM_EMAIL - Sender email address for Resend
-# RESEND_FROM_NAME - Sender display name for Resend
+# RESEND_FROM_NAME  - Sender display name for Resend
 # CLOUDINARY_CLOUD_NAME - Cloudinary cloud name
-# CLOUDINARY_API_KEY - Cloudinary API key
+# CLOUDINARY_API_KEY    - Cloudinary API key
 # CLOUDINARY_API_SECRET - Cloudinary API secret
-# FRONTEND_URL - Frontend app URL (for email links)
+# FRONTEND_URL      - Frontend app URL (for email links)

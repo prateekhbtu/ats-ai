@@ -1,16 +1,11 @@
 /**
- * LLM Service – Centralized LLM integration.
- * Supports two modes:
- *   1. Direct Gemini API (via API key)
- *   2. Self-hosted proxy (e.g. Vertex AI on Cloud Run / Render)
- * Toggle via USE_LLM_PROXY env var.
+ * LLM Service – Hosted Vertex AI proxy integration.
+ * Sends all requests to the self-hosted /generate endpoint.
+ * Set LLM_PROXY_URL in env; no API key needed.
  */
 
 import type { LlmRequest, LlmResponse, LlmConfig, Env } from '../types/index.js';
 import { LlmError } from '../middleware/error-handler.middleware.js';
-
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 // ── Proxy (self-hosted on Render free tier) ────────────────────────
 // Render cold-starts take 30-90s; give the request plenty of time.
@@ -19,39 +14,23 @@ const PROXY_MAX_RETRIES  = 3;
 // Gaps between retries: 30 s after 1st failure, 20 s after 2nd.
 const PROXY_RETRY_DELAYS = [30_000, 20_000];
 
-// ── Direct Gemini API ──────────────────────────────────────────────
-const DIRECT_TIMEOUT     = 90_000;  // 90 seconds
-const DIRECT_MAX_RETRIES = 3;
-const DIRECT_RETRY_SEED  = 2_000;   // exponential backoff seed
-
 /**
- * Build an LlmConfig from env vars.
- * Priority: LLM_PROXY_URL (if set) → GEMINI_API_KEY
- * No toggle needed — just set or unset LLM_PROXY_URL.
+ * Build an LlmConfig from the LLM_PROXY_URL env var.
+ * Throws immediately if the URL is not configured.
  */
 export function getLlmConfig(env: Env): LlmConfig {
   const proxyUrl = (env.LLM_PROXY_URL ?? '').trim();
-  const apiKey = (env.GEMINI_API_KEY ?? '').trim();
-
-  if (!proxyUrl && !apiKey) {
-    throw new LlmError('No LLM provider configured. Set LLM_PROXY_URL (hosted proxy) or GEMINI_API_KEY (direct Gemini).');
+  if (!proxyUrl) {
+    throw new LlmError('LLM_PROXY_URL is not set. Add it to your environment variables.');
   }
-
-  return {
-    useProxy: proxyUrl.length > 0,
-    apiKey,
-    proxyUrl,
-  };
+  return { proxyUrl };
 }
 
 /**
- * Unified LLM call — dispatches to proxy or direct Gemini based on config.
+ * Send a request to the hosted Vertex AI proxy.
  */
 export async function callLlm(config: LlmConfig, request: LlmRequest): Promise<LlmResponse> {
-  if (config.useProxy) {
-    return callLlmProxy(config.proxyUrl, request);
-  }
-  return callLlmDirect(config.apiKey, request);
+  return callLlmProxy(config.proxyUrl, request);
 }
 
 // ─── Proxy Mode ────────────────────────────────────────────────────
@@ -202,115 +181,7 @@ function parseProxyResponse(data: unknown): LlmResponse {
   };
 }
 
-// ─── Direct Gemini Mode ────────────────────────────────────────────
-
-async function callLlmDirect(apiKey: string, request: LlmRequest): Promise<LlmResponse> {
-  if (!apiKey) {
-    throw new LlmError('GEMINI_API_KEY is not configured');
-  }
-
-  const url = `${GEMINI_API_BASE}/${DEFAULT_MODEL}:generateContent?key=${apiKey}`;
-
-  const body = buildGeminiRequest(request);
-  let lastError: Error | null = null;
-
-  for (let attempt = 0; attempt < DIRECT_MAX_RETRIES; attempt++) {
-    try {
-      const response = await fetchWithTimeout(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }, DIRECT_TIMEOUT);
-
-      // Retryable Gemini errors – always capture before continue
-      if ([429, 500, 503].includes(response.status)) {
-        const snippet = (await response.text()).slice(0, 150);
-        lastError = new Error(`HTTP ${response.status}${snippet ? ': ' + snippet : ''}`);
-        if (attempt < DIRECT_MAX_RETRIES - 1) {
-          const delay = DIRECT_RETRY_SEED * Math.pow(2, attempt);
-          await sleep(delay);
-        }
-        continue;
-      }
-
-      if (!response.ok) {
-        const errorBody = await response.text();
-        throw new LlmError(`Gemini API error (${response.status}): ${errorBody}`);
-      }
-
-      const data = await response.json() as GeminiResponse;
-      return parseGeminiResponse(data);
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-
-      if (err instanceof LlmError && /\b(400|401|403)\b/.test(err.message)) {
-        throw err; // Don't retry client errors
-      }
-
-      if (attempt < DIRECT_MAX_RETRIES - 1) {
-        const delay = DIRECT_RETRY_SEED * Math.pow(2, attempt);
-        await sleep(delay);
-      }
-    }
-  }
-
-  throw new LlmError(
-    `Gemini API request failed after ${DIRECT_MAX_RETRIES} attempts. ` +
-    `Last error: ${lastError?.message ?? 'no error details captured'}`
-  );
-}
-
-function buildGeminiRequest(request: LlmRequest): GeminiRequestBody {
-  const body: GeminiRequestBody = {
-    contents: [
-      {
-        parts: [{ text: request.prompt }],
-      },
-    ],
-    generationConfig: {
-      temperature: request.temperature ?? 0.3,
-      maxOutputTokens: request.max_tokens ?? 8192,
-      responseMimeType: 'text/plain',
-    },
-  };
-
-  if (request.system_instruction) {
-    body.systemInstruction = {
-      parts: [{ text: request.system_instruction }],
-    };
-  }
-
-  return body;
-}
-
-function parseGeminiResponse(data: GeminiResponse): LlmResponse {
-  if (!data.candidates || data.candidates.length === 0) {
-    throw new LlmError('Gemini returned no candidates');
-  }
-
-  const candidate = data.candidates[0];
-
-  if (candidate.finishReason === 'SAFETY') {
-    throw new LlmError('Gemini response blocked by safety filters');
-  }
-
-  if (!candidate.content?.parts || candidate.content.parts.length === 0) {
-    throw new LlmError('Gemini returned empty content');
-  }
-
-  const text = candidate.content.parts.map(p => p.text || '').join('');
-
-  const usage = data.usageMetadata || { promptTokenCount: 0, candidatesTokenCount: 0, totalTokenCount: 0 };
-
-  return {
-    text,
-    usage: {
-      prompt_tokens: usage.promptTokenCount || 0,
-      completion_tokens: usage.candidatesTokenCount || 0,
-      total_tokens: usage.totalTokenCount || 0,
-    },
-  };
-}
+// ─── Shared Helpers ───────────────────────────────────────────────
 
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
@@ -334,33 +205,4 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// ─── Gemini Types ──────────────────────────────────────────────────
-interface GeminiRequestBody {
-  contents: Array<{
-    parts: Array<{ text: string }>;
-  }>;
-  generationConfig: {
-    temperature: number;
-    maxOutputTokens: number;
-    responseMimeType: string;
-  };
-  systemInstruction?: {
-    parts: Array<{ text: string }>;
-  };
-}
-
-interface GeminiResponse {
-  candidates?: Array<{
-    content?: {
-      parts: Array<{ text?: string }>;
-    };
-    finishReason?: string;
-  }>;
-  usageMetadata?: {
-    promptTokenCount?: number;
-    candidatesTokenCount?: number;
-    totalTokenCount?: number;
-  };
 }
