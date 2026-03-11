@@ -47,7 +47,7 @@ export async function enhanceResume(
     throw new NotFoundError('Analysis');
   }
 
-  const weaknesses = JSON.parse(analysis.weaknesses) as string[];
+  const weaknesses = (typeof analysis.weaknesses === 'string' ? JSON.parse(analysis.weaknesses) : analysis.weaknesses) as string[];
 
   // Generate enhanced resume via LLM
   const prompt = buildResumeEnhancePrompt(resume.sections, jd.extracted_data, weaknesses);
@@ -156,7 +156,7 @@ export async function refineResume(
     throw new NotFoundError('Enhanced resume');
   }
 
-  const currentSections = JSON.parse(existing.enhanced_sections) as ResumeSections;
+  const currentSections = (typeof existing.enhanced_sections === 'string' ? JSON.parse(existing.enhanced_sections) : existing.enhanced_sections) as ResumeSections;
 
   // Fetch original resume for grounding
   const original = await getResumeById(existing.resume_id, userId, env.DATABASE_URL);
@@ -164,7 +164,7 @@ export async function refineResume(
   // Build refinement prompt
   const prompt = buildResumeRefinePrompt(currentSections, original.sections, instructions);
 
-const llmResponse = await callLlm(getLlmConfig(env), {
+  const llmResponse = await callLlm(getLlmConfig(env), {
     prompt: prompt.user,
     system_instruction: prompt.system,
     temperature: 0.3,

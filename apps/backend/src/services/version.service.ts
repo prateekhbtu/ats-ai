@@ -68,7 +68,7 @@ export async function getVersionDetail(
     entity_id: row.entity_id,
     version_number: row.version_number,
     created_at: row.created_at,
-    content_snapshot: JSON.parse(row.content_snapshot),
+    content_snapshot: typeof row.content_snapshot === 'string' ? JSON.parse(row.content_snapshot) : row.content_snapshot,
   };
 }
 

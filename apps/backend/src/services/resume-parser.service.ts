@@ -89,7 +89,7 @@ export function extractTextFromDocx(buffer: ArrayBuffer): string {
 
   // Find XML content with <w:t> tags
   const textParts: string[] = [];
-  
+
   // Extract text from <w:t> and <w:t xml:space="preserve"> tags
   const wtMatches = text.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || [];
   for (const match of wtMatches) {
@@ -123,7 +123,7 @@ export function extractTextFromDocx(buffer: ArrayBuffer): string {
 
   // Build paragraphs from w:p boundaries
   const joined = textParts.join(' ');
-  
+
   // Clean up extra whitespace
   return joined.replace(/\s+/g, ' ').trim();
 }
@@ -138,7 +138,7 @@ export async function parseResumeSections(rawText: string, config: import('../ty
 
   const sanitized = enforceTextBoundary(rawText, 30000);
   const injectionCheck = checkForInjection(sanitized);
-  
+
   const textToProcess = injectionCheck.is_safe ? sanitized : injectionCheck.sanitized_text;
 
   const prompt = buildResumeParsePrompt(textToProcess);
@@ -256,7 +256,7 @@ export async function getResumeById(
   return {
     id: resume.id,
     raw_text: resume.raw_text,
-    sections: JSON.parse(resume.sections) as ResumeSections,
+    sections: (typeof resume.sections === 'string' ? JSON.parse(resume.sections) : resume.sections) as ResumeSections,
     original_filename: resume.original_filename,
     created_at: resume.created_at,
   };

@@ -181,8 +181,8 @@ export async function getAnalysisById(
   return {
     analysis_id: analysis.id,
     uniscore: analysis.uniscore,
-    breakdown: JSON.parse(analysis.breakdown),
-    strengths: JSON.parse(analysis.strengths),
-    weaknesses: JSON.parse(analysis.weaknesses),
+    breakdown: typeof analysis.breakdown === 'string' ? JSON.parse(analysis.breakdown) : analysis.breakdown,
+    strengths: typeof analysis.strengths === 'string' ? JSON.parse(analysis.strengths) : analysis.strengths,
+    weaknesses: typeof analysis.weaknesses === 'string' ? JSON.parse(analysis.weaknesses) : analysis.weaknesses,
   };
 }

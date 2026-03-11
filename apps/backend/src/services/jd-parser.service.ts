@@ -183,7 +183,7 @@ export async function getJdById(
   return {
     id: jd.id,
     raw_text: jd.raw_text,
-    extracted_data: JSON.parse(jd.extracted_data) as JdExtractedData,
+    extracted_data: (typeof jd.extracted_data === 'string' ? JSON.parse(jd.extracted_data) : jd.extracted_data) as JdExtractedData,
     source_url: jd.source_url,
   };
 }
