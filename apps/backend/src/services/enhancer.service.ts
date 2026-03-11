@@ -52,7 +52,7 @@ export async function enhanceResume(
   // Generate enhanced resume via LLM
   const prompt = buildResumeEnhancePrompt(resume.sections, jd.extracted_data, weaknesses);
 
-  const llmResponse = await callLlm(env.GEMINI_API_KEY, {
+  const llmResponse = await callLlm(getLlmConfig(env), {
     prompt: prompt.user,
     system_instruction: prompt.system,
     temperature: 0.4,

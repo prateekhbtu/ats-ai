@@ -6,6 +6,7 @@ node_modules/
 .dev.vars
 .dev.vars.local
 .dev.vars.production
+.openapi.json
 
 # Build and dist
 dist/

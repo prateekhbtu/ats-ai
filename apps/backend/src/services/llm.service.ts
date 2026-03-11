@@ -10,20 +10,37 @@ import type { LlmRequest, LlmResponse, LlmConfig, Env } from '../types/index.js'
 import { LlmError } from '../middleware/error-handler.middleware.js';
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const DEFAULT_MODEL = 'gemini-2.0-flash';
-const MAX_RETRIES = 3;
-const INITIAL_RETRY_DELAY = 1000;
-const REQUEST_TIMEOUT = 60_000;
+const DEFAULT_MODEL = 'gemini-2.5-flash';
+
+// ── Proxy (self-hosted on Render free tier) ────────────────────────
+// Render cold-starts take 30-90s; give the request plenty of time.
+const PROXY_TIMEOUT      = 180_000; // 3 minutes
+const PROXY_MAX_RETRIES  = 3;
+// Gaps between retries: 30 s after 1st failure, 20 s after 2nd.
+const PROXY_RETRY_DELAYS = [30_000, 20_000];
+
+// ── Direct Gemini API ──────────────────────────────────────────────
+const DIRECT_TIMEOUT     = 90_000;  // 90 seconds
+const DIRECT_MAX_RETRIES = 3;
+const DIRECT_RETRY_SEED  = 2_000;   // exponential backoff seed
 
 /**
  * Build an LlmConfig from env vars.
- * All services that have access to `env` should use this.
+ * Priority: LLM_PROXY_URL (if set) → GEMINI_API_KEY
+ * No toggle needed — just set or unset LLM_PROXY_URL.
  */
 export function getLlmConfig(env: Env): LlmConfig {
+  const proxyUrl = (env.LLM_PROXY_URL ?? '').trim();
+  const apiKey = (env.GEMINI_API_KEY ?? '').trim();
+
+  if (!proxyUrl && !apiKey) {
+    throw new LlmError('No LLM provider configured. Set LLM_PROXY_URL (hosted proxy) or GEMINI_API_KEY (direct Gemini).');
+  }
+
   return {
-    useProxy: env.USE_LLM_PROXY === 'true',
-    apiKey: env.GEMINI_API_KEY ?? '',
-    proxyUrl: env.LLM_PROXY_URL ?? '',
+    useProxy: proxyUrl.length > 0,
+    apiKey,
+    proxyUrl,
   };
 }
 
@@ -54,17 +71,23 @@ async function callLlmProxy(proxyUrl: string, request: LlmRequest): Promise<LlmR
 
   let lastError: Error | null = null;
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt < PROXY_MAX_RETRIES; attempt++) {
     try {
       const response = await fetchWithTimeout(proxyUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: fullText }),
-      }, REQUEST_TIMEOUT);
+      }, PROXY_TIMEOUT);
 
-      if (response.status === 429 || response.status === 503 || response.status === 500) {
-        const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt);
-        await sleep(delay);
+      // Retryable server-side / gateway errors (incl. Render cold-start 502/503)
+      if ([429, 500, 502, 503, 504].includes(response.status)) {
+        const snippet = (await response.text()).slice(0, 150);
+        lastError = new Error(`HTTP ${response.status}${snippet ? ': ' + snippet : ''}`);
+        if (attempt < PROXY_MAX_RETRIES - 1) {
+          const delay = PROXY_RETRY_DELAYS[attempt] ?? 10_000;
+          console.log(`[LLM proxy] attempt ${attempt + 1} got ${response.status}, retrying in ${delay / 1000}s…`);
+          await sleep(delay);
+        }
         continue;
       }
 
@@ -73,63 +96,109 @@ async function callLlmProxy(proxyUrl: string, request: LlmRequest): Promise<LlmR
         throw new LlmError(`LLM proxy error (${response.status}): ${errorBody}`);
       }
 
-      const data = await response.json() as Record<string, unknown>;
+      const rawBody = await response.text();
+      if (!rawBody.trim()) {
+        throw new LlmError('LLM proxy returned an empty body');
+      }
+
+      let data: unknown;
+      try {
+        data = JSON.parse(rawBody);
+      } catch {
+        // If the body is plain text (not JSON), treat it as the answer directly
+        const trimmed = rawBody.trim();
+        if (trimmed.length > 0 && !trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+          return { text: trimmed, usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } };
+        }
+        throw new LlmError(`LLM proxy returned non-JSON response: ${rawBody.slice(0, 300)}`);
+      }
       return parseProxyResponse(data);
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
 
-      if (err instanceof LlmError && (err.message.includes('400') || err.message.includes('403'))) {
+      // Don't retry on definitive client errors
+      if (err instanceof LlmError && /\b(400|401|403|422)\b/.test(err.message)) {
         throw err;
       }
 
-      if (attempt < MAX_RETRIES - 1) {
-        const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt);
+      if (attempt < PROXY_MAX_RETRIES - 1) {
+        const delay = PROXY_RETRY_DELAYS[attempt] ?? 10_000;
+        console.log(`[LLM proxy] attempt ${attempt + 1} error: ${lastError.message}. Retrying in ${delay / 1000}s…`);
         await sleep(delay);
       }
     }
   }
 
-  throw new LlmError(`LLM proxy request failed after ${MAX_RETRIES} attempts: ${lastError?.message || 'Unknown error'}`);
+  throw new LlmError(
+    `LLM proxy request failed after ${PROXY_MAX_RETRIES} attempts. ` +
+    `Last error: ${lastError?.message ?? 'no error details captured'}`
+  );
 }
 
-function parseProxyResponse(data: Record<string, unknown>): LlmResponse {
-  // The proxy may return various shapes — handle common patterns:
-  // 1. { text: "..." }  (simple)
-  // 2. { response: "..." }
-  // 3. { candidates: [...] }  (Gemini-like passthrough)
-  // 4. Plain string at top-level (unlikely from JSON parse)
-
-  let text = '';
-
-  if (typeof data.text === 'string') {
-    text = data.text;
-  } else if (typeof data.response === 'string') {
-    text = data.response;
-  } else if (typeof data.output === 'string') {
-    text = data.output;
-  } else if (Array.isArray(data.candidates)) {
-    // Gemini-style passthrough
-    const candidate = data.candidates[0] as Record<string, unknown> | undefined;
-    if (candidate?.content && typeof candidate.content === 'object') {
-      const content = candidate.content as { parts?: Array<{ text?: string }> };
-      text = content.parts?.map(p => p.text || '').join('') ?? '';
-    }
-  } else {
-    // Last resort: stringify it
-    text = JSON.stringify(data);
+function parseProxyResponse(data: unknown): LlmResponse {
+  // Shape 1: plain JSON string  e.g. FastAPI returning response.text directly
+  if (typeof data === 'string') {
+    const text = data.trim();
+    if (!text) throw new LlmError('LLM proxy returned empty string response');
+    return { text, usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } };
   }
 
-  if (!text) {
-    throw new LlmError('LLM proxy returned empty response');
+  if (typeof data !== 'object' || data === null) {
+    throw new LlmError(`LLM proxy returned unexpected type: ${typeof data}`);
+  }
+
+  const obj = data as Record<string, unknown>;
+  let text = '';
+
+  // Shape 2: { text: "..." }
+  if (typeof obj.text === 'string') {
+    text = obj.text;
+  }
+  // Shape 3: { response: "..." }
+  else if (typeof obj.response === 'string') {
+    text = obj.response;
+  }
+  // Shape 4: { output: "..." } or { result: "..." }
+  else if (typeof obj.output === 'string') {
+    text = obj.output;
+  } else if (typeof obj.result === 'string') {
+    text = obj.result;
+  }
+  // Shape 5: Vertex AI / Gemini candidates array (camelCase OR snake_case)
+  else if (Array.isArray(obj.candidates)) {
+    const candidate = obj.candidates[0] as Record<string, unknown> | undefined;
+    if (candidate) {
+      const content = (candidate.content ?? candidate.Content) as Record<string, unknown> | undefined;
+      if (content) {
+        const parts = (content.parts ?? content.Parts) as Array<{ text?: string }> | undefined;
+        if (Array.isArray(parts)) {
+          text = parts.map(p => p.text ?? '').join('');
+        }
+      }
+    }
+  }
+  // Shape 6: Vertex AI protobuf-JSON with predictions array
+  else if (Array.isArray(obj.predictions)) {
+    const first = obj.predictions[0];
+    if (typeof first === 'string') {
+      text = first;
+    } else if (typeof first === 'object' && first !== null) {
+      const p = first as Record<string, unknown>;
+      text = (typeof p.text === 'string' ? p.text : typeof p.content === 'string' ? p.content : '');
+    }
+  }
+
+  if (!text.trim()) {
+    // Dump the actual shape to help debug
+    throw new LlmError(
+      `LLM proxy returned unrecognised shape. Keys: [${Object.keys(obj).join(', ')}]. ` +
+      `Snippet: ${JSON.stringify(obj).slice(0, 300)}`
+    );
   }
 
   return {
-    text,
-    usage: {
-      prompt_tokens: 0,
-      completion_tokens: 0,
-      total_tokens: 0,
-    },
+    text: text.trim(),
+    usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
   };
 }
 
@@ -145,23 +214,22 @@ async function callLlmDirect(apiKey: string, request: LlmRequest): Promise<LlmRe
   const body = buildGeminiRequest(request);
   let lastError: Error | null = null;
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt < DIRECT_MAX_RETRIES; attempt++) {
     try {
       const response = await fetchWithTimeout(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      }, REQUEST_TIMEOUT);
+      }, DIRECT_TIMEOUT);
 
-      if (response.status === 429) {
-        const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt);
-        await sleep(delay);
-        continue;
-      }
-
-      if (response.status === 503 || response.status === 500) {
-        const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt);
-        await sleep(delay);
+      // Retryable Gemini errors – always capture before continue
+      if ([429, 500, 503].includes(response.status)) {
+        const snippet = (await response.text()).slice(0, 150);
+        lastError = new Error(`HTTP ${response.status}${snippet ? ': ' + snippet : ''}`);
+        if (attempt < DIRECT_MAX_RETRIES - 1) {
+          const delay = DIRECT_RETRY_SEED * Math.pow(2, attempt);
+          await sleep(delay);
+        }
         continue;
       }
 
@@ -175,18 +243,21 @@ async function callLlmDirect(apiKey: string, request: LlmRequest): Promise<LlmRe
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
 
-      if (err instanceof LlmError && (err.message.includes('400') || err.message.includes('403'))) {
+      if (err instanceof LlmError && /\b(400|401|403)\b/.test(err.message)) {
         throw err; // Don't retry client errors
       }
 
-      if (attempt < MAX_RETRIES - 1) {
-        const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt);
+      if (attempt < DIRECT_MAX_RETRIES - 1) {
+        const delay = DIRECT_RETRY_SEED * Math.pow(2, attempt);
         await sleep(delay);
       }
     }
   }
 
-  throw new LlmError(`LLM request failed after ${MAX_RETRIES} attempts: ${lastError?.message || 'Unknown error'}`);
+  throw new LlmError(
+    `Gemini API request failed after ${DIRECT_MAX_RETRIES} attempts. ` +
+    `Last error: ${lastError?.message ?? 'no error details captured'}`
+  );
 }
 
 function buildGeminiRequest(request: LlmRequest): GeminiRequestBody {

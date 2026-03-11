@@ -2,8 +2,8 @@
 export interface Env {
   DATABASE_URL: string;
   GEMINI_API_KEY: string;
-  USE_LLM_PROXY: string;      // "true" | "false"
-  LLM_PROXY_URL: string;      // e.g. https://test-gemini.onrender.com/generate
+  USE_LLM_PROXY?: string;     // Deprecated – kept for backward compat, no longer used
+  LLM_PROXY_URL?: string;     // If set, proxy is used automatically; overrides GEMINI_API_KEY
   GOOGLE_CLIENT_ID: string;
   JWT_SECRET: string;
   RESEND_API_KEY: string;
