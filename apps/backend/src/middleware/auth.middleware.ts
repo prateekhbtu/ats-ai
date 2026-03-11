@@ -50,6 +50,9 @@ export async function signJwt(payload: Omit<JwtPayload, 'iat' | 'exp'>, secret: 
 }
 
 export async function verifyJwt(token: string, secret: string): Promise<JwtPayload | null> {
+  if (!secret) {
+    throw new Error("Misconfiguration: JWT_SECRET environment variable is missing or empty.");
+  }
   const parts = token.split('.');
   if (parts.length !== 3) return null;
 
@@ -92,6 +95,9 @@ function base64UrlDecode(str: string): string {
 }
 
 async function hmacSign(data: string, secret: string): Promise<string> {
+  if (!secret) {
+    throw new Error("Misconfiguration: JWT_SECRET environment variable is missing or empty.");
+  }
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     'raw',

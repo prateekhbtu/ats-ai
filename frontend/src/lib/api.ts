@@ -1,3 +1,5 @@
+import { logger } from './logger';
+
 // ─── API Base ───────────────────────────────────────────────────────────────
 const API_BASE =
   (import.meta.env.VITE_API_BASE as string | undefined) ?? 'http://localhost:8787';
@@ -21,6 +23,7 @@ async function request<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
+  const method = (options.method ?? 'GET').toUpperCase();
   const token = getToken();
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -35,16 +38,46 @@ async function request<T>(
     headers['Content-Type'] = 'application/json';
   }
 
+  // Build a loggable body (parse JSON strings; mark FormData uploads)
+  let logBody: Record<string, unknown> | string | undefined;
+  if (typeof options.body === 'string') {
+    try {
+      logBody = JSON.parse(options.body) as Record<string, unknown>;
+    } catch {
+      logBody = options.body;
+    }
+  } else if (options.body instanceof FormData) {
+    logBody = '[FormData upload]';
+  }
+
+  logger.request(method, endpoint, logBody);
+
   const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Request failed' }));
-    throw new ApiError(res.status, err.error ?? `HTTP ${res.status}`, err.code);
+    // Parse the backend error body.
+    // On 500s the backend sends: { error: "Internal server error", code: "INTERNAL_ERROR", message: "actual cause" }
+    // On known errors it sends:  { error: "<readable message>", code: "<CODE>" }
+    // We prefer `message` (detail) when present, otherwise fall back to `error`.
+    const errBody = await res.json().catch(() => ({ error: 'Request failed' })) as {
+      error?: string;
+      code?: string;
+      message?: string;
+    };
+    const displayMessage = errBody.message ?? errBody.error ?? `HTTP ${res.status}`;
+    logger.error(method, endpoint, res.status, errBody.error ?? `HTTP ${res.status}`, errBody.message);
+    throw new ApiError(res.status, displayMessage, errBody.code);
   }
 
   // 204 No Content
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  if (res.status === 204) {
+    logger.response(method, endpoint, 204);
+    return undefined as T;
+  }
+
+  const data = await res.json() as T;
+  logger.response(method, endpoint, res.status, data);
+  return data;
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────

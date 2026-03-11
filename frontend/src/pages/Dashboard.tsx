@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { FileText, MoreVertical, Sparkles, TrendingUp, Briefcase, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';

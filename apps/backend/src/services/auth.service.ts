@@ -1,6 +1,5 @@
 /**
  * Auth Service – Google OAuth + Email/Password authentication.
- * Password hashing via Web Crypto API (PBKDF2 – Workers compatible).
  */
 
 import { queryOne, execute } from './db.service.js';
@@ -12,10 +11,31 @@ import { ValidationError, UnauthorizedError, ConflictError, NotFoundError } from
 
 // ─── Password Hashing (PBKDF2 via Web Crypto) ─────────────────────
 
-const HASH_ITERATIONS = 100_000;
+const HASH_ITERATIONS = 100000;
 const HASH_KEY_LENGTH = 64; // bytes
 const HASH_ALGORITHM = 'SHA-256';
 const SALT_LENGTH = 16; // bytes
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+  }
+  return bytes;
+}
+
+function timingSafeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
 
 async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
@@ -35,10 +55,7 @@ async function hashPassword(password: string): Promise<string> {
   );
 
   const hashArray = new Uint8Array(hashBits);
-  const saltHex = bytesToHex(salt);
-  const hashHex = bytesToHex(hashArray);
-
-  return `pbkdf2:${HASH_ITERATIONS}:${saltHex}:${hashHex}`;
+  return `pbkdf2:${HASH_ITERATIONS}:${bytesToHex(salt)}:${bytesToHex(hashArray)}`;
 }
 
 export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
@@ -68,27 +85,6 @@ export async function verifyPassword(password: string, storedHash: string): Prom
   return timingSafeCompare(hashHex, expectedHash);
 }
 
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-  }
-  return bytes;
-}
-
-function timingSafeCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
-}
-
 // ─── Token Generation ──────────────────────────────────────────────
 
 function generateSecureToken(): string {
@@ -106,30 +102,16 @@ function validateEmail(email: string): void {
 }
 
 function validatePassword(password: string): void {
-  if (password.length < 8) {
-    throw new ValidationError('Password must be at least 8 characters');
-  }
-  if (password.length > 128) {
-    throw new ValidationError('Password must be 128 characters or less');
-  }
-  if (!/[a-z]/.test(password)) {
-    throw new ValidationError('Password must contain at least one lowercase letter');
-  }
-  if (!/[A-Z]/.test(password)) {
-    throw new ValidationError('Password must contain at least one uppercase letter');
-  }
-  if (!/[0-9]/.test(password)) {
-    throw new ValidationError('Password must contain at least one number');
-  }
+  if (password.length < 8) throw new ValidationError('Password must be at least 8 characters');
+  if (password.length > 128) throw new ValidationError('Password must be 128 characters or less');
+  if (!/[a-z]/.test(password)) throw new ValidationError('Password must contain at least one lowercase letter');
+  if (!/[A-Z]/.test(password)) throw new ValidationError('Password must contain at least one uppercase letter');
+  if (!/[0-9]/.test(password)) throw new ValidationError('Password must contain at least one number');
 }
 
 function validateName(name: string): void {
-  if (!name || name.trim().length < 1) {
-    throw new ValidationError('Name is required');
-  }
-  if (name.length > 255) {
-    throw new ValidationError('Name must be 255 characters or less');
-  }
+  if (!name || name.trim().length === 0) throw new ValidationError('Name is required');
+  if (name.length > 255) throw new ValidationError('Name must be 255 characters or less');
 }
 
 // ─── JWT Helper ────────────────────────────────────────────────────
@@ -148,35 +130,38 @@ async function issueToken(user: UserRow, jwtSecret: string): Promise<AuthRespons
 
 // ─── Google OAuth ──────────────────────────────────────────────────
 
-interface GoogleTokenPayload {
+interface GoogleTokenInfo {
   sub: string;
   email: string;
-  email_verified: boolean;
+  email_verified: string | boolean;
   name: string;
-  picture: string;
+  picture?: string;
   aud: string;
-  iss: string;
-  exp: number;
+  exp: string;
 }
 
-async function verifyGoogleToken(idToken: string, googleClientId: string): Promise<GoogleTokenPayload> {
+export async function verifyGoogleToken(idToken: string, googleClientId: string): Promise<GoogleTokenInfo> {
   const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
 
   if (!response.ok) {
     throw new UnauthorizedError('Invalid Google ID token');
   }
 
-  const payload = await response.json() as GoogleTokenPayload;
+  const payload = await response.json() as GoogleTokenInfo;
 
   if (payload.aud !== googleClientId) {
-    throw new UnauthorizedError('Token audience mismatch');
+    throw new UnauthorizedError('Token audience mismatch: this token was not minted for this application.');
   }
 
-  if (!payload.email_verified) {
-    throw new ValidationError('Google email not verified');
+  // Google might use string 'true' or boolean true
+  const isVerified = payload.email_verified === 'true' || payload.email_verified === true;
+  if (!isVerified) {
+    throw new ValidationError('Google email is not verified');
   }
 
-  if (payload.exp < Math.floor(Date.now() / 1000)) {
+  // Validate expiration
+  const exp = parseInt(payload.exp, 10);
+  if (isNaN(exp) || exp < Math.floor(Date.now() / 1000)) {
     throw new UnauthorizedError('Google token expired');
   }
 
@@ -189,29 +174,34 @@ export async function googleSignIn(
   jwtSecret: string,
   databaseUrl: string
 ): Promise<AuthResponse> {
-  const googlePayload = await verifyGoogleToken(idToken, googleClientId);
+  const payload = await verifyGoogleToken(idToken, googleClientId);
 
-  // Check if a user exists with this google_id
+  const googleId = payload.sub;
+  const email = payload.email.toLowerCase().trim();
+  const name = payload.name;
+  const picture = payload.picture || '';
+
+  // 1. Try to find user by google_id
   let user = await queryOne<UserRow>(
     databaseUrl,
     `SELECT * FROM users WHERE google_id = $1`,
-    [googlePayload.sub]
+    [googleId]
   );
 
   if (user) {
-    // Update profile from Google
+    // Update existing Google user
     user = (await queryOne<UserRow>(
       databaseUrl,
       `UPDATE users SET name = $1, picture = $2, email = $3, email_verified = TRUE, updated_at = NOW()
-       WHERE google_id = $4 RETURNING *`,
-      [googlePayload.name, googlePayload.picture, googlePayload.email, googlePayload.sub]
+       WHERE id = $4 RETURNING *`,
+      [name, picture, email, user.id]
     ))!;
   } else {
-    // Check if email already exists (user registered via email)
+    // 2. Try to find user by email
     const existingByEmail = await queryOne<UserRow>(
       databaseUrl,
       `SELECT * FROM users WHERE email = $1`,
-      [googlePayload.email]
+      [email]
     );
 
     if (existingByEmail) {
@@ -219,28 +209,21 @@ export async function googleSignIn(
       user = (await queryOne<UserRow>(
         databaseUrl,
         `UPDATE users SET google_id = $1, picture = CASE WHEN picture = '' THEN $2 ELSE picture END, 
-         email_verified = TRUE, updated_at = NOW() WHERE email = $3 RETURNING *`,
-        [googlePayload.sub, googlePayload.picture, googlePayload.email]
+         email_verified = TRUE, updated_at = NOW() WHERE id = $3 RETURNING *`,
+        [googleId, picture, existingByEmail.id]
       ))!;
     } else {
-      // Create new user
-      const created = await queryOne<UserRow>(
+      // 3. Create brand new user
+      user = (await queryOne<UserRow>(
         databaseUrl,
         `INSERT INTO users (id, google_id, email, name, picture, email_verified, auth_provider)
          VALUES (gen_random_uuid(), $1, $2, $3, $4, TRUE, 'google') RETURNING *`,
-        [googlePayload.sub, googlePayload.email, googlePayload.name, googlePayload.picture]
-      );
-
-      if (!created) {
-        user = await queryOne<UserRow>(databaseUrl, `SELECT * FROM users WHERE google_id = $1`, [googlePayload.sub]);
-        if (!user) throw new Error('Failed to create or find user');
-      } else {
-        user = created;
-      }
+        [googleId, email, name, picture]
+      ))!;
     }
   }
 
-  return issueToken(user!, jwtSecret);
+  return issueToken(user, jwtSecret);
 }
 
 // ─── Email Registration ────────────────────────────────────────────
@@ -260,6 +243,7 @@ export async function emailRegister(
 
   const normalizedEmail = email.toLowerCase().trim();
 
+  // Check existing
   const existing = await queryOne<UserRow>(
     databaseUrl,
     `SELECT * FROM users WHERE email = $1`,
@@ -280,10 +264,10 @@ export async function emailRegister(
   );
 
   if (!user) {
-    throw new Error('Failed to create user');
+    throw new Error('Failed to create user account');
   }
 
-  // Create email verification token
+  // Verification Token
   const verifyToken = generateSecureToken();
   await execute(
     databaseUrl,
@@ -292,8 +276,10 @@ export async function emailRegister(
     [user.id, verifyToken]
   );
 
-  // Send verification email (fire-and-forget)
-  sendVerificationEmail(emailConfig, normalizedEmail, name, verifyToken, frontendUrl).catch(() => {});
+  // Send email asynchronously
+  sendVerificationEmail(emailConfig, normalizedEmail, name, verifyToken, frontendUrl).catch((err) => {
+    console.error('Failed to send verification email during registration:', err);
+  });
 
   return issueToken(user, jwtSecret);
 }
@@ -308,7 +294,7 @@ export async function emailLogin(
 ): Promise<AuthResponse> {
   validateEmail(email);
 
-  if (!password || password.length === 0) {
+  if (!password) {
     throw new ValidationError('Password is required');
   }
 
@@ -325,7 +311,7 @@ export async function emailLogin(
   }
 
   if (!user.password_hash) {
-    throw new UnauthorizedError('This account uses Google sign-in. Please sign in with Google.');
+    throw new UnauthorizedError('This account is registered via Google sign-in. Please use Google login.');
   }
 
   const valid = await verifyPassword(password, user.password_hash);
@@ -343,7 +329,7 @@ export async function verifyEmail(
   databaseUrl: string
 ): Promise<{ message: string }> {
   if (!token || token.length !== 64) {
-    throw new ValidationError('Invalid verification token');
+    throw new ValidationError('Invalid verification token format');
   }
 
   const tokenRow = await queryOne<EmailVerificationTokenRow>(
@@ -372,7 +358,7 @@ export async function verifyEmail(
     [tokenRow.user_id]
   );
 
-  return { message: 'Email verified successfully' };
+  return { message: 'Email successfully verified.' };
 }
 
 // ─── Resend Verification Email ─────────────────────────────────────
@@ -397,7 +383,7 @@ export async function resendVerification(
     throw new ValidationError('Email is already verified');
   }
 
-  // Invalidate existing tokens
+  // Invalidate any old tokens
   await execute(
     databaseUrl,
     `UPDATE email_verification_tokens SET used = TRUE WHERE user_id = $1 AND used = FALSE`,
@@ -414,7 +400,7 @@ export async function resendVerification(
 
   await sendVerificationEmail(emailConfig, user.email, user.name, verifyToken, frontendUrl);
 
-  return { message: 'Verification email sent' };
+  return { message: 'A new verification email has been sent.' };
 }
 
 // ─── Change Password ───────────────────────────────────────────────
@@ -439,7 +425,7 @@ export async function changePassword(
   }
 
   if (!user.password_hash) {
-    throw new ValidationError('This account uses Google sign-in and has no password to change');
+    throw new ValidationError('This account uses Google sign-in and therefore does not have a password.');
   }
 
   const valid = await verifyPassword(currentPassword, user.password_hash);
@@ -455,9 +441,9 @@ export async function changePassword(
     [newHash, userId]
   );
 
-  sendPasswordChangedEmail(emailConfig, user.email, user.name).catch(() => {});
+  sendPasswordChangedEmail(emailConfig, user.email, user.name).catch(() => { });
 
-  return { message: 'Password changed successfully' };
+  return { message: 'Password has been successfully updated.' };
 }
 
 // ─── Forgot Password ──────────────────────────────────────────────
@@ -477,12 +463,12 @@ export async function forgotPassword(
     [normalizedEmail]
   );
 
-  // Always return success to prevent email enumeration
+  // Return success even if not found to prevent user enumeration
   if (!user || !user.password_hash) {
-    return { message: 'If an account with that email exists, a password reset link has been sent' };
+    return { message: 'If an account with that email exists, a password reset link has been sent.' };
   }
 
-  // Invalidate existing tokens
+  // Invalidate old tokens
   await execute(
     databaseUrl,
     `UPDATE password_reset_tokens SET used = TRUE WHERE user_id = $1 AND used = FALSE`,
@@ -499,7 +485,7 @@ export async function forgotPassword(
 
   await sendPasswordResetEmail(emailConfig, user.email, user.name, resetToken, frontendUrl);
 
-  return { message: 'If an account with that email exists, a password reset link has been sent' };
+  return { message: 'If an account with that email exists, a password reset link has been sent.' };
 }
 
 // ─── Reset Password ───────────────────────────────────────────────
@@ -511,7 +497,7 @@ export async function resetPassword(
   emailConfig: EmailSenderConfig
 ): Promise<{ message: string }> {
   if (!token || token.length !== 64) {
-    throw new ValidationError('Invalid reset token');
+    throw new ValidationError('Invalid reset token format');
   }
 
   validatePassword(newPassword);
@@ -546,13 +532,11 @@ export async function resetPassword(
 
   const user = await queryOne<UserRow>(databaseUrl, `SELECT * FROM users WHERE id = $1`, [tokenRow.user_id]);
   if (user) {
-    sendPasswordChangedEmail(emailConfig, user.email, user.name).catch(() => {});
+    sendPasswordChangedEmail(emailConfig, user.email, user.name).catch(() => { });
   }
 
-  return { message: 'Password reset successfully' };
+  return { message: 'Password has been successfully reset.' };
 }
-
-// ─── Backward compatibility export ─────────────────────────────────
 
 export async function getUserById(databaseUrl: string, userId: string): Promise<UserRow | null> {
   return queryOne<UserRow>(databaseUrl, `SELECT * FROM users WHERE id = $1`, [userId]);

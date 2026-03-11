@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Layers, ArrowLeft, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Layers, ArrowLeft, Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { authApi } from '../lib/api';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
 
 export function Login() {
@@ -15,6 +16,25 @@ export function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  const handleForgotPassword = async () => {
+    if (!form.email) {
+      setError('Enter your email address above first.');
+      return;
+    }
+    setError('');
+    setSuccessMsg('');
+    setLoading(true);
+    try {
+      await authApi.forgotPassword(form.email);
+      setSuccessMsg('Password reset link sent — check your inbox.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send reset email.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +93,13 @@ export function Login() {
             </div>
           )}
 
+          {successMsg && (
+            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm mb-6">
+              <CheckCircle2 size={16} className="shrink-0" />
+              {successMsg}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -93,20 +120,14 @@ export function Login() {
                 <label className="block text-sm font-medium text-gray-700">
                   Password
                 </label>
-                <Link
-                  to="#"
-                  onClick={async (e) => {
-                    e.preventDefault();
-                    if (!form.email) {
-                      setError('Enter your email above first.');
-                      return;
-                    }
-                    // TODO: trigger forgot-password flow
-                  }}
-                  className="text-xs text-gray-500 hover:text-gray-900 transition-colors"
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={loading}
+                  className="text-xs text-gray-500 hover:text-gray-900 transition-colors disabled:opacity-50"
                 >
                   Forgot password?
-                </Link>
+                </button>
               </div>
               <div className="relative">
                 <input
@@ -147,7 +168,7 @@ export function Login() {
           <GoogleSignInButton
             variant="signin"
             redirectTo={from}
-            onError={(msg) => setError(msg)}
+            onError={(msg) => { setError(msg); setSuccessMsg(''); }}
           />
 
           <div className="mt-8 text-center text-sm text-gray-600">

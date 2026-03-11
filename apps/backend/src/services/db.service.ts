@@ -1,16 +1,17 @@
-import { neon, NeonQueryFunction } from '@neondatabase/serverless';
+import { Pool, PoolConfig } from '@neondatabase/serverless';
 
-let sqlInstance: NeonQueryFunction<false, false> | null = null;
+let poolInstance: Pool | null = null;
 
-export function getDb(databaseUrl: string): NeonQueryFunction<false, false> {
-  if (!sqlInstance) {
-    sqlInstance = neon(databaseUrl);
+export function getDb(databaseUrl: string): Pool {
+  if (!poolInstance) {
+    const config: PoolConfig = { connectionString: databaseUrl };
+    poolInstance = new Pool(config);
   }
-  return sqlInstance;
+  return poolInstance;
 }
 
-export function freshDb(databaseUrl: string): NeonQueryFunction<false, false> {
-  return neon(databaseUrl);
+export function freshDb(databaseUrl: string): Pool {
+  return new Pool({ connectionString: databaseUrl });
 }
 
 export async function query<T = Record<string, unknown>>(
@@ -18,9 +19,10 @@ export async function query<T = Record<string, unknown>>(
   text: string,
   params: unknown[] = []
 ): Promise<T[]> {
-  const sql = freshDb(databaseUrl);
-  const result = await sql(text, params);
-  return result as unknown as T[];
+  const pool = getDb(databaseUrl);
+  // ensure we return row objects correctly
+  const result = await pool.query(text, params);
+  return (result.rows || []) as unknown as T[];
 }
 
 export async function queryOne<T = Record<string, unknown>>(
@@ -37,6 +39,6 @@ export async function execute(
   text: string,
   params: unknown[] = []
 ): Promise<void> {
-  const sql = freshDb(databaseUrl);
-  await sql(text, params);
+  const pool = getDb(databaseUrl);
+  await pool.query(text, params);
 }

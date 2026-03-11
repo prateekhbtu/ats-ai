@@ -21,10 +21,19 @@ export function Signup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Live password requirements — must match backend validatePassword()
+  const pwChecks = {
+    length: form.password.length >= 8,
+    lower:  /[a-z]/.test(form.password),
+    upper:  /[A-Z]/.test(form.password),
+    number: /[0-9]/.test(form.password),
+  };
+  const pwValid = Object.values(pwChecks).every(Boolean);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.password.length < 8) {
-      setError('Password must be at least 8 characters.');
+    if (!pwValid) {
+      setError('Please meet all password requirements before continuing.');
       return;
     }
     setError('');
@@ -162,11 +171,35 @@ export function Signup() {
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+
+                {/* Password requirements checklist — shown once user starts typing */}
+                {form.password.length > 0 && (
+                  <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+                    {([
+                      { key: 'length', label: 'At least 8 characters' },
+                      { key: 'lower',  label: 'One lowercase letter' },
+                      { key: 'upper',  label: 'One uppercase letter' },
+                      { key: 'number', label: 'One number' },
+                    ] as const).map(({ key, label }) => (
+                      <span
+                        key={key}
+                        className={`text-xs flex items-center gap-1.5 transition-colors ${
+                          pwChecks[key] ? 'text-green-400' : 'text-gray-500'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                          pwChecks[key] ? 'bg-green-400' : 'bg-gray-600'
+                        }`} />
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !pwValid}
                 className="w-full bg-white text-gray-900 py-3 px-4 rounded-xl font-semibold text-sm hover:bg-gray-100 transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-lg mt-2"
               >
                 {loading ? 'Creating account…' : 'Create free account'}
