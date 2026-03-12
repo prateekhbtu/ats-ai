@@ -1,7 +1,10 @@
 // ─── Environment Bindings ──────────────────────────────────────────
 export interface Env {
   DATABASE_URL: string;
-  LLM_PROXY_URL: string;      // Hosted Vertex AI proxy endpoint (required)
+  VERTEX_AI_PROJECT_ID: string;
+  VERTEX_AI_LOCATION: string;
+  VERTEX_AI_CLIENT_EMAIL: string;
+  VERTEX_AI_PRIVATE_KEY: string;
   GOOGLE_CLIENT_ID: string;
   JWT_SECRET: string;
   RESEND_API_KEY: string;
@@ -13,10 +16,12 @@ export interface Env {
   FRONTEND_URL: string;
   ENVIRONMENT: string;
 }
-
 // ─── LLM Configuration ────────────────────────────────────────────
 export interface LlmConfig {
-  proxyUrl: string;   // Hosted Vertex AI proxy endpoint
+  projectId: string;
+  location: string;
+  clientEmail: string;
+  privateKey: string;
 }
 
 // ─── Database Row Types ────────────────────────────────────────────

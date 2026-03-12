@@ -8,7 +8,10 @@ ENVIRONMENT = "production"
 
 # Secrets (set via `wrangler secret put`):
 # DATABASE_URL      - NeonDB connection string
-# LLM_PROXY_URL     - Hosted Vertex AI proxy endpoint URL
+# VERTEX_AI_PROJECT_ID  - Google Cloud Project ID
+# VERTEX_AI_LOCATION    - Vertex AI Location (e.g. us-central1)
+# VERTEX_AI_CLIENT_EMAIL - Google Service Account Email
+# VERTEX_AI_PRIVATE_KEY  - Google Service Account Private Key
 # GOOGLE_CLIENT_ID  - Google OAuth Client ID
 # JWT_SECRET        - JWT signing secret
 # RESEND_API_KEY    - Resend email service API key
