@@ -9,8 +9,9 @@ import { getJdById } from './jd-parser.service.js';
 import { callLlm, getLlmConfig } from './llm.service.js';
 import { buildResumeEnhancePrompt, buildResumeRefinePrompt } from '../utils/prompt-builder.js';
 import { validateJsonResponse, validateResumeSections } from '../utils/response-validator.js';
-import { checkHallucinations } from '../utils/hallucination-checker.js';
+import { checkHallucinations, sanitizeEnhancedSections } from '../utils/hallucination-checker.js';
 import { generateDiff, sectionsToText } from '../utils/diff-generator.js';
+import { resumeSectionsSchema } from '../utils/vertex-response-schemas.js';
 import type { EnhancedResumeRow, ResumeSections, Env, DiffResult } from '../types/index.js';
 import { ValidationError, NotFoundError, LlmError } from '../middleware/error-handler.middleware.js';
 
@@ -57,6 +58,7 @@ export async function enhanceResume(
     system_instruction: prompt.system,
     temperature: 0.4,
     max_tokens: 8192,
+    response_schema: resumeSectionsSchema,
   });
 
   const parsed = validateJsonResponse<ResumeSections>(llmResponse.text);
@@ -69,16 +71,14 @@ export async function enhanceResume(
     throw new LlmError('Enhanced resume has invalid structure');
   }
 
-  const enhancedSections = parsed.data;
+  const rawEnhancedSections = parsed.data;
 
-  // Hallucination check
-  const hallucinationResult = checkHallucinations(resume.sections, enhancedSections);
-
-  if (!hallucinationResult.is_valid && hallucinationResult.violations.length > 3) {
-    throw new LlmError(
-      `Enhancement contains too many fabricated elements: ${hallucinationResult.violations.map(v => v.description).join('; ')}`
-    );
-  }
+  // Hallucination check — auto-sanitize instead of throwing
+  const hallucinationResult = checkHallucinations(resume.sections, rawEnhancedSections);
+  const enhancedSections =
+    hallucinationResult.violations.length > 0
+      ? sanitizeEnhancedSections(resume.sections, rawEnhancedSections)
+      : rawEnhancedSections;
 
   // Generate diff
   const diff = generateDiff(resume.sections, enhancedSections);
@@ -169,6 +169,7 @@ export async function refineResume(
     system_instruction: prompt.system,
     temperature: 0.3,
     max_tokens: 8192,
+    response_schema: resumeSectionsSchema,
   });
 
   const parsed = validateJsonResponse<ResumeSections>(llmResponse.text);
@@ -181,16 +182,14 @@ export async function refineResume(
     throw new LlmError('Refined resume has invalid structure');
   }
 
-  const refinedSections = parsed.data;
+  const rawRefinedSections = parsed.data;
 
-  // Hallucination check against original
-  const hallucinationResult = checkHallucinations(original.sections, refinedSections);
-
-  if (!hallucinationResult.is_valid && hallucinationResult.violations.length > 3) {
-    throw new LlmError(
-      `Refinement contains fabricated elements: ${hallucinationResult.violations.map(v => v.description).join('; ')}`
-    );
-  }
+  // Hallucination check against original — auto-sanitize instead of throwing
+  const hallucinationResult = checkHallucinations(original.sections, rawRefinedSections);
+  const refinedSections =
+    hallucinationResult.violations.length > 0
+      ? sanitizeEnhancedSections(original.sections, rawRefinedSections)
+      : rawRefinedSections;
 
   const diff = generateDiff(original.sections, refinedSections);
   const refinedText = sectionsToText(refinedSections);

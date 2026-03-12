@@ -3,8 +3,8 @@
  * FULLY DETERMINISTIC – no LLM involvement in score calculation.
  *
  * UniScore =
- *   (0.35 * keyword_match_score)
- * + (0.20 * market_alignment_score)
+ *   (0.30 * keyword_match_score)
+ * + (0.25 * market_alignment_score)
  * + (0.15 * section_completeness_score)
  * + (0.15 * readability_score)
  * + (0.15 * experience_depth_score)
@@ -17,8 +17,8 @@ import { computeMarketAlignment } from './role-market-benchmark.js';
 import { validateSections } from './section-validator.js';
 
 const WEIGHTS = {
-  keyword_match: 0.35,
-  market_alignment: 0.20,
+  keyword_match: 0.30,
+  market_alignment: 0.25,
   section_completeness: 0.15,
   readability: 0.15,
   experience_depth: 0.15,

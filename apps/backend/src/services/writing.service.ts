@@ -8,6 +8,7 @@ import type { LlmConfig } from '../types/index.js';
 import { buildWritingAnalysisPrompt } from '../utils/prompt-builder.js';
 import { validateJsonResponse, validateWritingAnalysis } from '../utils/response-validator.js';
 import { checkForInjection, enforceTextBoundary } from '../utils/injection-guard.js';
+import { writingAnalysisSchema } from '../utils/vertex-response-schemas.js';
 import type { WritingIssue, WritingAnalysisResult } from '../types/index.js';
 import { ValidationError } from '../middleware/error-handler.middleware.js';
 
@@ -149,6 +150,7 @@ export async function analyzeWriting(text: string, config: LlmConfig): Promise<W
       system_instruction: prompt.system,
       temperature: 0.3,
       max_tokens: 4096,
+      response_schema: writingAnalysisSchema,
     });
 
     const parsed = validateJsonResponse<{

@@ -4,7 +4,7 @@
 
 import { Hono } from 'hono';
 import type { Env, AppVariables, CoverLetterTone } from '../types/index.js';
-import { generateCoverLetter } from '../services/cover-letter.service.js';
+import { generateCoverLetter, getCoverLetterById } from '../services/cover-letter.service.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { llmRateLimiter } from '../middleware/rate-limiter.middleware.js';
 import { ValidationError } from '../middleware/error-handler.middleware.js';
@@ -59,6 +59,19 @@ coverLetterRoutes.post('/generate', llmRateLimiter(), async (c) => {
   );
 
   return c.json(result, 201);
+});
+
+// GET /api/cover-letter/:id
+coverLetterRoutes.get('/:id', async (c) => {
+  const clId = c.req.param('id');
+  const userId = c.get('userId');
+
+  if (!clId || !isValidUUID(clId)) {
+    throw new ValidationError('Valid cover letter id is required');
+  }
+
+  const result = await getCoverLetterById(clId, userId, c.env.DATABASE_URL);
+  return c.json(result, 200);
 });
 
 function isValidUUID(str: string): boolean {

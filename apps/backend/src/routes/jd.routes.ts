@@ -4,7 +4,7 @@
 
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../types/index.js';
-import { processJobDescription } from '../services/jd-parser.service.js';
+import { processJobDescription, getJdById } from '../services/jd-parser.service.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { llmRateLimiter } from '../middleware/rate-limiter.middleware.js';
 import { ValidationError } from '../middleware/error-handler.middleware.js';
@@ -54,5 +54,22 @@ jdRoutes.post('/process', llmRateLimiter(), async (c) => {
 
   return c.json(result, 201);
 });
+
+// GET /api/jd/:id
+jdRoutes.get('/:id', async (c) => {
+  const jdId = c.req.param('id');
+  const userId = c.get('userId');
+
+  if (!jdId || !isValidUUID(jdId)) {
+    throw new ValidationError('Valid jd_id is required');
+  }
+
+  const jd = await getJdById(jdId, userId, c.env.DATABASE_URL);
+  return c.json(jd, 200);
+});
+
+function isValidUUID(str: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
 
 export default jdRoutes;

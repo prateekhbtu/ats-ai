@@ -8,6 +8,7 @@ import { callLlm, getLlmConfig } from './llm.service.js';
 import { buildJdParsePrompt } from '../utils/prompt-builder.js';
 import { validateJsonResponse, validateJdExtractedData } from '../utils/response-validator.js';
 import { checkForInjection, enforceTextBoundary, sanitizeText } from '../utils/injection-guard.js';
+import { jdExtractedDataSchema } from '../utils/vertex-response-schemas.js';
 import type { JdRow, JdExtractedData, Env } from '../types/index.js';
 import { ValidationError, NotFoundError, LlmError } from '../middleware/error-handler.middleware.js';
 
@@ -93,6 +94,7 @@ async function extractJdData(rawText: string, config: import('../types/index.js'
     system_instruction: prompt.system,
     temperature: 0.1,
     max_tokens: 4096,
+    response_schema: jdExtractedDataSchema,
   });
 
   const parsed = validateJsonResponse<JdExtractedData>(llmResponse.text);

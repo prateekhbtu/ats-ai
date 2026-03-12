@@ -6,7 +6,7 @@
 
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../types/index.js';
-import { uploadAndParseResume, getResumeById } from '../services/resume-parser.service.js';
+import { uploadAndParseResume, getResumeById, deleteResume } from '../services/resume-parser.service.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { llmRateLimiter } from '../middleware/rate-limiter.middleware.js';
 import { ValidationError } from '../middleware/error-handler.middleware.js';
@@ -71,6 +71,20 @@ resumeRoutes.get('/:id', async (c) => {
   const resume = await getResumeById(resumeId, userId, c.env.DATABASE_URL);
 
   return c.json(resume, 200);
+});
+
+// DELETE /api/resume/:id
+resumeRoutes.delete('/:id', async (c) => {
+  const resumeId = c.req.param('id');
+  const userId = c.get('userId');
+
+  if (!resumeId || !isValidUUID(resumeId)) {
+    throw new ValidationError('Valid resume ID is required');
+  }
+
+  await deleteResume(resumeId, userId, c.env.DATABASE_URL);
+
+  return c.json({ message: 'Resume deleted successfully' }, 200);
 });
 
 function isValidUUID(str: string): boolean {

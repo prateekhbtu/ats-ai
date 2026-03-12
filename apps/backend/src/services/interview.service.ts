@@ -7,6 +7,7 @@ import { getJdById } from './jd-parser.service.js';
 import { callLlm, getLlmConfig } from './llm.service.js';
 import { buildInterviewQuestionsPrompt } from '../utils/prompt-builder.js';
 import { validateJsonResponse, validateInterviewQuestions } from '../utils/response-validator.js';
+import { interviewQuestionsSchema } from '../utils/vertex-response-schemas.js';
 import type { InterviewQuestion, Env } from '../types/index.js';
 import { LlmError } from '../middleware/error-handler.middleware.js';
 
@@ -35,6 +36,7 @@ export async function generateInterviewQuestions(
     system_instruction: prompt.system,
     temperature: 0.5,
     max_tokens: 4096,
+    response_schema: interviewQuestionsSchema,
   });
 
   const parsed = validateJsonResponse<{ questions: InterviewQuestion[] }>(llmResponse.text);
@@ -57,14 +59,20 @@ export async function generateInterviewQuestions(
     suggested_approach: q.suggested_approach || '',
   }));
 
+  // Enforce distribution cap: 4 technical, 3 behavioral, 3 situational (total 10)
+  const technical = validatedQuestions.filter(q => q.category === 'technical').slice(0, 4);
+  const behavioral = validatedQuestions.filter(q => q.category === 'behavioral').slice(0, 3);
+  const situational = validatedQuestions.filter(q => q.category === 'situational').slice(0, 3);
+  const cappedQuestions = [...technical, ...behavioral, ...situational];
+
   const breakdown = {
-    technical: validatedQuestions.filter(q => q.category === 'technical').length,
-    behavioral: validatedQuestions.filter(q => q.category === 'behavioral').length,
-    situational: validatedQuestions.filter(q => q.category === 'situational').length,
+    technical: technical.length,
+    behavioral: behavioral.length,
+    situational: situational.length,
   };
 
   return {
-    questions: validatedQuestions,
+    questions: cappedQuestions,
     categories_breakdown: breakdown,
   };
 }

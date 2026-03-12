@@ -166,6 +166,7 @@ export interface ScoreBreakdown {
 
 export interface UniScoreResult {
   id: string;
+  analysis_id: string;
   uniscore: number;
   breakdown: ScoreBreakdown;
   strengths: string[];
@@ -307,6 +308,9 @@ export const resumeApi = {
   },
 
   get: (id: string) => request<{ resume: ResumeDetail }>(`/api/resume/${id}`),
+
+  delete: (id: string) =>
+    request<{ message: string }>(`/api/resume/${id}`, { method: 'DELETE' }),
 };
 
 // ─── Job Description ──────────────────────────────────────────────────────────

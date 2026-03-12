@@ -187,8 +187,16 @@ async function restoreCoverLetter(
     [version.entity_id]
   );
 
+  // Get true latest version number to avoid conflicts on multiple restores
+  const latestCLVersion = await queryOne<{ max_version: number }>(
+    env.DATABASE_URL,
+    `SELECT COALESCE(MAX(version_number), 0) AS max_version FROM versions
+     WHERE entity_id = $1 AND entity_type = 'cover_letter'`,
+    [version.entity_id]
+  );
+  const newVersionNumber = (latestCLVersion?.max_version || 0) + 1;
+
   // Create new version entry
-  const newVersionNumber = version.version_number + 1;
   const newVersionEntry = await queryOne<{ id: string }>(
     env.DATABASE_URL,
     `INSERT INTO versions (id, user_id, resume_id, entity_type, entity_id, version_number, content_snapshot)

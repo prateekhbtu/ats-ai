@@ -148,6 +148,7 @@ export const openApiSpec = {
         type: 'object',
         properties: {
           id: { type: 'string', format: 'uuid' },
+          analysis_id: { type: 'string', format: 'uuid', description: 'Alias for id — use when referencing the analysis in subsequent requests' },
           uniscore: { type: 'number' },
           breakdown: { $ref: '#/components/schemas/ScoreBreakdown' },
           strengths: { type: 'array', items: { type: 'string' } },
@@ -531,6 +532,26 @@ export const openApiSpec = {
           404: { description: 'Not found' },
         },
       },
+      delete: {
+        tags: ['Resume'],
+        summary: 'Delete a resume and all associated data',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: {
+          200: {
+            description: 'Resume deleted successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { message: { type: 'string' } },
+                },
+              },
+            },
+          },
+          404: { description: 'Resume not found or not owned by user' },
+        },
+      },
     },
 
     // ── Job Description ───────────────────────────────────────────
@@ -571,6 +592,33 @@ export const openApiSpec = {
         },
       },
     },
+    '/api/jd/{id}': {
+      get: {
+        tags: ['Job Description'],
+        summary: 'Get a processed JD by ID',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: {
+          200: {
+            description: 'Job description',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string', format: 'uuid' },
+                    raw_text: { type: 'string' },
+                    extracted_data: { $ref: '#/components/schemas/JdExtractedData' },
+                    source_url: { type: 'string', nullable: true },
+                  },
+                },
+              },
+            },
+          },
+          404: { description: 'Not found' },
+        },
+      },
+    },
 
     // ── Analysis ──────────────────────────────────────────────────
     '/api/analysis/uniscore': {
@@ -595,6 +643,18 @@ export const openApiSpec = {
         },
         responses: {
           200: { description: 'Score result', content: { 'application/json': { schema: { $ref: '#/components/schemas/UniScoreResult' } } } },
+        },
+      },
+    },
+    '/api/analysis/{id}': {
+      get: {
+        tags: ['Analysis'],
+        summary: 'Get a stored analysis result by ID',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: {
+          200: { description: 'Analysis result', content: { 'application/json': { schema: { $ref: '#/components/schemas/UniScoreResult' } } } },
+          404: { description: 'Not found' },
         },
       },
     },
@@ -632,7 +692,15 @@ export const openApiSpec = {
                     id: { type: 'string' },
                     version: { type: 'number' },
                     enhanced_sections: { $ref: '#/components/schemas/ResumeSections' },
+                    enhanced_text: { type: 'string', description: 'Plain-text rendering of the enhanced resume' },
                     diff: { type: 'array', items: { $ref: '#/components/schemas/DiffResult' } },
+                    hallucination_check: {
+                      type: 'object',
+                      properties: {
+                        is_valid: { type: 'boolean' },
+                        violations_count: { type: 'number' },
+                      },
+                    },
                   },
                 },
               },
@@ -672,7 +740,15 @@ export const openApiSpec = {
                     id: { type: 'string' },
                     version: { type: 'number' },
                     enhanced_sections: { $ref: '#/components/schemas/ResumeSections' },
+                    enhanced_text: { type: 'string', description: 'Plain-text rendering of the refined resume' },
                     diff: { type: 'array', items: { $ref: '#/components/schemas/DiffResult' } },
+                    hallucination_check: {
+                      type: 'object',
+                      properties: {
+                        is_valid: { type: 'boolean' },
+                        violations_count: { type: 'number' },
+                      },
+                    },
                   },
                 },
               },
@@ -714,13 +790,43 @@ export const openApiSpec = {
                   type: 'object',
                   properties: {
                     id: { type: 'string' },
-                    tone: { type: 'string' },
+                    tone: { type: 'string', enum: ['formal', 'conversational', 'assertive'] },
+                    template: { type: 'string' },
                     content: { type: 'string' },
+                    word_count: { type: 'number' },
                   },
                 },
               },
             },
           },
+        },
+      },
+    },
+    '/api/cover-letter/{id}': {
+      get: {
+        tags: ['Cover Letter'],
+        summary: 'Get a cover letter by ID',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: {
+          200: {
+            description: 'Cover letter',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    tone: { type: 'string', enum: ['formal', 'conversational', 'assertive'] },
+                    template: { type: 'string' },
+                    content: { type: 'string' },
+                    word_count: { type: 'number' },
+                  },
+                },
+              },
+            },
+          },
+          404: { description: 'Not found' },
         },
       },
     },
@@ -755,6 +861,14 @@ export const openApiSpec = {
                   type: 'object',
                   properties: {
                     questions: { type: 'array', items: { $ref: '#/components/schemas/InterviewQuestion' } },
+                    categories_breakdown: {
+                      type: 'object',
+                      properties: {
+                        technical: { type: 'number' },
+                        behavioral: { type: 'number' },
+                        situational: { type: 'number' },
+                      },
+                    },
                   },
                 },
               },

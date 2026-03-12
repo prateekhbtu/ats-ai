@@ -8,6 +8,7 @@ import { resumeStore, type ResumeRecord } from '../lib/storage';
 export function Resumes() {
   const [resumes, setResumes] = useState<ResumeRecord[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -54,9 +55,17 @@ export function Resumes() {
     if (file) handleUpload(file);
   }
 
-  function handleRemove(id: string) {
-    resumeStore.remove(id);
-    setResumes(resumeStore.list());
+  async function handleRemove(id: string) {
+    setRemoving(id);
+    try {
+      await resumeApi.delete(id);
+      resumeStore.remove(id);
+      setResumes(resumeStore.list());
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to delete resume.');
+    } finally {
+      setRemoving(null);
+    }
   }
 
   return (
@@ -159,10 +168,13 @@ export function Resumes() {
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => handleRemove(resume.id)}
-                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    disabled={removing === resume.id}
+                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                     title="Remove"
                   >
-                    <Trash2 size={16} />
+                    {removing === resume.id
+                      ? <Loader2 size={16} className="animate-spin" />
+                      : <Trash2 size={16} />}
                   </button>
                   <button className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-colors">
                     <MoreVertical size={16} />

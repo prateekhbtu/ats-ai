@@ -8,6 +8,7 @@ import { getJdById } from './jd-parser.service.js';
 import { callLlm, getLlmConfig } from './llm.service.js';
 import { buildCoverLetterPrompt } from '../utils/prompt-builder.js';
 import { validateJsonResponse, validateCoverLetterResponse } from '../utils/response-validator.js';
+import { coverLetterSchema } from '../utils/vertex-response-schemas.js';
 import type { CoverLetterRow, CoverLetterTone, Env } from '../types/index.js';
 import { LlmError, NotFoundError } from '../middleware/error-handler.middleware.js';
 
@@ -37,6 +38,7 @@ export async function generateCoverLetter(
     system_instruction: prompt.system,
     temperature: 0.5,
     max_tokens: 4096,
+    response_schema: coverLetterSchema,
   });
 
   const parsed = validateJsonResponse<{ content: string; word_count: number }>(llmResponse.text);

@@ -130,7 +130,7 @@ export function Editor() {
     setError(null);
     setEnhancing(true);
     try {
-      const result = await enhancerApi.enhance(resumeId, jdId, scoreResult.id);
+      const result = await enhancerApi.enhance(resumeId, jdId, scoreResult.analysis_id);
       setEnhanceResult(result);
       setAssistantTab('suggestions');
       setActiveTab('resume');

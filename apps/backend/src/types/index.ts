@@ -182,6 +182,8 @@ export interface ScoreBreakdown {
 }
 
 export interface UniScoreResult {
+  id: string;
+  analysis_id: string;
   uniscore: number;
   breakdown: ScoreBreakdown;
   strengths: string[];
@@ -360,6 +362,10 @@ export interface LlmRequest {
   temperature?: number;
   max_tokens?: number;
   response_schema?: Record<string, unknown>;
+  file_data?: {
+    mime_type: string;
+    data: string; // base64 encoded
+  };
 }
 
 export interface LlmResponse {

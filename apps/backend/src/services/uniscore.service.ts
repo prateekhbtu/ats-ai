@@ -10,8 +10,9 @@ import { callLlm, getLlmConfig } from './llm.service.js';
 import { computeUniScore } from '../utils/scoring-engine.js';
 import { buildStrengthsWeaknessesPrompt } from '../utils/prompt-builder.js';
 import { validateJsonResponse, validateStrengthsWeaknesses } from '../utils/response-validator.js';
+import { strengthsWeaknessesSchema } from '../utils/vertex-response-schemas.js';
 import type { AnalysisRow, UniScoreResult, Env } from '../types/index.js';
-import { LlmError } from '../middleware/error-handler.middleware.js';
+import { NotFoundError } from '../middleware/error-handler.middleware.js';
 
 export async function computeAndStoreUniScore(
   resumeId: string,
@@ -55,6 +56,7 @@ export async function computeAndStoreUniScore(
   }
 
   return {
+    id: analysis.id,
     analysis_id: analysis.id,
     uniscore: scoringResult.uniscore,
     breakdown: scoringResult.breakdown,
@@ -77,6 +79,7 @@ async function generateStrengthsWeaknesses(
       system_instruction: prompt.system,
       temperature: 0.3,
       max_tokens: 2048,
+      response_schema: strengthsWeaknessesSchema,
     });
 
     const parsed = validateJsonResponse<{ strengths: string[]; weaknesses: string[] }>(llmResponse.text);
@@ -175,10 +178,11 @@ export async function getAnalysisById(
   );
 
   if (!analysis) {
-    throw new LlmError('Analysis not found');
+    throw new NotFoundError('Analysis');
   }
 
   return {
+    id: analysis.id,
     analysis_id: analysis.id,
     uniscore: analysis.uniscore,
     breakdown: typeof analysis.breakdown === 'string' ? JSON.parse(analysis.breakdown) : analysis.breakdown,

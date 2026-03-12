@@ -8,16 +8,35 @@ import { LlmError } from '../middleware/error-handler.middleware.js';
 
 let cachedToken: { token: string; exp: number } | null = null;
 
+function normalizeEnvValue(value: string | undefined): string {
+  if (!value) return '';
+
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+
+  return trimmed;
+}
+
 export function getLlmConfig(env: Env): LlmConfig {
-  if (!env.VERTEX_AI_PROJECT_ID || !env.VERTEX_AI_LOCATION || !env.VERTEX_AI_CLIENT_EMAIL || !env.VERTEX_AI_PRIVATE_KEY) {
+  const projectId = normalizeEnvValue(env.VERTEX_AI_PROJECT_ID);
+  const location = normalizeEnvValue(env.VERTEX_AI_LOCATION);
+  const clientEmail = normalizeEnvValue(env.VERTEX_AI_CLIENT_EMAIL);
+  const privateKey = normalizeEnvValue(env.VERTEX_AI_PRIVATE_KEY);
+
+  if (!projectId || !location || !clientEmail || !privateKey) {
     throw new LlmError('Vertex AI variables are not fully configured in your environment.');
   }
 
   return {
-    projectId: env.VERTEX_AI_PROJECT_ID,
-    location: env.VERTEX_AI_LOCATION,
-    clientEmail: env.VERTEX_AI_CLIENT_EMAIL,
-    privateKey: env.VERTEX_AI_PRIVATE_KEY,
+    projectId,
+    location,
+    clientEmail,
+    privateKey,
   };
 }
 
@@ -34,11 +53,22 @@ export async function callLlm(config: LlmConfig, request: LlmRequest): Promise<L
 async function callVertexAiGenerateContent(config: LlmConfig, accessToken: string, request: LlmRequest): Promise<LlmResponse> {
   const url = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/gemini-2.0-flash:generateContent`;
 
+  const parts: any[] = [];
+  if (request.file_data) {
+    parts.push({
+      inlineData: {
+        mimeType: request.file_data.mime_type,
+        data: request.file_data.data
+      }
+    });
+  }
+  parts.push({ text: request.prompt });
+
   const payload: any = {
     contents: [
       {
         role: "user",
-        parts: [{ text: request.prompt }]
+        parts: parts
       }
     ],
     generationConfig: {

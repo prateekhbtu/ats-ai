@@ -214,6 +214,108 @@ function checkMetrics(original: ResumeSections, enhanced: ResumeSections, violat
   }
 }
 
+/**
+ * Sanitize an enhanced resume by removing or replacing any fabricated entries.
+ * Instead of throwing, strip:
+ *  - experience entries whose company doesn't match any original
+ *  - education entries with new degree/institution that don't match originals
+ *  - certifications not in original
+ *  - projects not in original
+ *  - excess new skills beyond the original set
+ * Metrics in bullets are cleaned by removing numeric tokens not in the original.
+ */
+export function sanitizeEnhancedSections(
+  original: ResumeSections,
+  enhanced: ResumeSections
+): ResumeSections {
+  const originalCompanies = new Set(original.experience.map(e => normalizeText(e.company)));
+  const originalDegrees = new Set(original.education.map(e => normalizeText(e.degree)));
+  const originalInstitutions = new Set(original.education.map(e => normalizeText(e.institution)));
+  const originalCerts = new Set(original.certifications.map(c => normalizeText(c)));
+  const originalProjectNames = new Set(original.projects.map(p => normalizeText(p.name)));
+  const originalText = buildFullText(original).toLowerCase();
+  const originalNumbers = extractNumbers(buildFullText(original));
+
+  // --- experience: remove entries whose company is fabricated ---
+  const cleanedExperience = enhanced.experience.filter(exp => {
+    const norm = normalizeText(exp.company);
+    if (!norm) return true;
+    if (originalCompanies.has(norm)) return true;
+    return Array.from(originalCompanies).some(oc => stringSimilarity(oc, norm) > 0.7);
+  }).map(exp => ({
+    ...exp,
+    // clean fabricated metrics out of bullets – replace with original bullet if one matches
+    bullets: exp.bullets.map(bullet => {
+      const bulletNums = extractNumbers(bullet);
+      let cleaned = bullet;
+      for (const num of bulletNums) {
+        const base = num.replace(/[%$+,x]/g, '');
+        const isDerivable =
+          originalNumbers.has(num) ||
+          originalNumbers.has(base) ||
+          Array.from(originalNumbers).some(on => on.replace(/[%$+,x]/g, '') === base);
+        if (!isDerivable && /\d/.test(num)) {
+          // Remove the number and any % / $ suffix attached to it
+          cleaned = cleaned.replace(new RegExp(num.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '');
+        }
+      }
+      return cleaned.replace(/\s{2,}/g, ' ').trim();
+    }).filter(b => b.length > 0),
+  }));
+
+  // If all experience was stripped (very unlikely), fall back to original
+  const safeExperience = cleanedExperience.length > 0 ? cleanedExperience : original.experience;
+
+  // --- education: remove entries with fabricated degree OR institution ---
+  const cleanedEducation = enhanced.education.filter(edu => {
+    const normDeg = normalizeText(edu.degree);
+    const normInst = normalizeText(edu.institution);
+    const degOk = !normDeg || originalDegrees.has(normDeg) ||
+      Array.from(originalDegrees).some(od => stringSimilarity(od, normDeg) > 0.7);
+    const instOk = !normInst || originalInstitutions.has(normInst) ||
+      Array.from(originalInstitutions).some(oi => stringSimilarity(oi, normInst) > 0.7);
+    return degOk && instOk;
+  });
+  const safeEducation = cleanedEducation.length > 0 ? cleanedEducation : original.education;
+
+  // --- certifications: keep only those present in original ---
+  const cleanedCerts = enhanced.certifications.filter(cert => {
+    const norm = normalizeText(cert);
+    return !norm || originalCerts.has(norm) ||
+      Array.from(originalCerts).some(oc => stringSimilarity(oc, norm) > 0.7);
+  });
+
+  // --- projects: remove fabricated projects ---
+  const cleanedProjects = enhanced.projects.filter(proj => {
+    const norm = normalizeText(proj.name);
+    return !norm || originalProjectNames.has(norm) ||
+      Array.from(originalProjectNames).some(op => stringSimilarity(op, norm) > 0.6);
+  });
+  const safeProjects = cleanedProjects.length > 0 ? cleanedProjects : original.projects;
+
+  // --- skills: remove fabricated skills beyond a reasonable expansion ---
+  const originalSkillSet = new Set(original.skills.map(s => normalizeText(s)));
+  const cleanedSkills = enhanced.skills.filter(s => {
+    const norm = normalizeText(s);
+    if (originalSkillSet.has(norm)) return true;
+    if (originalText.includes(norm)) return true;
+    const parts = norm.split(/\s+/);
+    return parts.every(p => p.length <= 2 || originalText.includes(p));
+  });
+  // If cleaning removed everything, fall back to original skills
+  const safeSkills = cleanedSkills.length > 0 ? cleanedSkills : original.skills;
+
+  return {
+    summary: enhanced.summary,
+    experience: safeExperience,
+    education: safeEducation,
+    skills: safeSkills,
+    certifications: cleanedCerts,
+    projects: safeProjects,
+    other: enhanced.other,
+  };
+}
+
 function normalizeText(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
 }
