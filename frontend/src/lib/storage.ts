@@ -13,6 +13,16 @@ export interface JdRecord {
   company: string;
   created_at: string;
   url?: string;
+  extracted_data?: {
+    title: string;
+    company: string;
+    required_skills: string[];
+    preferred_skills: string[];
+    experience_requirements: string;
+    role_expectations: string[];
+    industry: string;
+    seniority_level: string;
+  };
 }
 
 export interface OptimizationRecord {

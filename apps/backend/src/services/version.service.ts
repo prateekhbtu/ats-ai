@@ -16,6 +16,55 @@ export interface VersionListItem {
 
 export interface VersionDetail extends VersionListItem {
   content_snapshot: unknown;
+  diff?: unknown;
+}
+
+async function insertVersionRowWithFallback(
+  databaseUrl: string,
+  args: {
+    userId: string;
+    resumeId: string;
+    entityType: 'enhanced_resume' | 'cover_letter';
+    entityId: string;
+    versionNumber: number;
+    contentSnapshot: unknown;
+    diff: unknown;
+  }
+): Promise<{ id: string } | null> {
+  try {
+    return await queryOne<{ id: string }>(
+      databaseUrl,
+      `INSERT INTO versions (id, user_id, resume_id, entity_type, entity_id, version_number, content_snapshot, diff)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [
+        args.userId,
+        args.resumeId,
+        args.entityType,
+        args.entityId,
+        args.versionNumber,
+        JSON.stringify(args.contentSnapshot),
+        JSON.stringify(args.diff),
+      ]
+    );
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/column\s+"?diff"?\s+of\s+relation\s+"?versions"?\s+does\s+not\s+exist/i.test(msg)) {
+      return await queryOne<{ id: string }>(
+        databaseUrl,
+        `INSERT INTO versions (id, user_id, resume_id, entity_type, entity_id, version_number, content_snapshot)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6) RETURNING id`,
+        [
+          args.userId,
+          args.resumeId,
+          args.entityType,
+          args.entityId,
+          args.versionNumber,
+          JSON.stringify({ ...args.contentSnapshot, diff: args.diff }),
+        ]
+      );
+    }
+    throw err;
+  }
 }
 
 /**
@@ -69,6 +118,7 @@ export async function getVersionDetail(
     version_number: row.version_number,
     created_at: row.created_at,
     content_snapshot: typeof row.content_snapshot === 'string' ? JSON.parse(row.content_snapshot) : row.content_snapshot,
+    diff: typeof row.diff === 'string' ? JSON.parse(row.diff) : row.diff,
   };
 }
 
@@ -97,6 +147,7 @@ async function restoreEnhancedResume(
   env: Env
 ): Promise<{ restored_version: VersionDetail; new_version_id: string }> {
   const snapshot = version.content_snapshot as { sections: ResumeSections; text: string };
+  const snapshotDiff = (version.diff || []) as unknown;
 
   if (!snapshot.sections || !snapshot.text) {
     throw new ValidationError('Invalid version snapshot for enhanced resume');
@@ -144,12 +195,15 @@ async function restoreEnhancedResume(
   }
 
   // Create new version entry
-  const newVersionEntry = await queryOne<{ id: string }>(
-    env.DATABASE_URL,
-    `INSERT INTO versions (id, user_id, resume_id, entity_type, entity_id, version_number, content_snapshot)
-     VALUES (gen_random_uuid(), $1, $2, 'enhanced_resume', $3, $4, $5) RETURNING id`,
-    [userId, original.resume_id, restored.id, newVersion, JSON.stringify(snapshot)]
-  );
+  const newVersionEntry = await insertVersionRowWithFallback(env.DATABASE_URL, {
+    userId,
+    resumeId: original.resume_id,
+    entityType: 'enhanced_resume',
+    entityId: restored.id,
+    versionNumber: newVersion,
+    contentSnapshot: snapshot,
+    diff: snapshotDiff,
+  });
 
   return {
     restored_version: version,
@@ -197,12 +251,15 @@ async function restoreCoverLetter(
   const newVersionNumber = (latestCLVersion?.max_version || 0) + 1;
 
   // Create new version entry
-  const newVersionEntry = await queryOne<{ id: string }>(
-    env.DATABASE_URL,
-    `INSERT INTO versions (id, user_id, resume_id, entity_type, entity_id, version_number, content_snapshot)
-     VALUES (gen_random_uuid(), $1, $2, 'cover_letter', $3, $4, $5) RETURNING id`,
-    [userId, cl?.resume_id || '', version.entity_id, newVersionNumber, JSON.stringify(snapshot)]
-  );
+  const newVersionEntry = await insertVersionRowWithFallback(env.DATABASE_URL, {
+    userId,
+    resumeId: cl?.resume_id || '',
+    entityType: 'cover_letter',
+    entityId: version.entity_id,
+    versionNumber: newVersionNumber,
+    contentSnapshot: snapshot,
+    diff: [],
+  });
 
   return {
     restored_version: version,

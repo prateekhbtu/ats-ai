@@ -35,6 +35,7 @@ export function Jobs() {
         company: res.extracted_data.company,
         created_at: new Date().toISOString(),
         url: url.trim() || undefined,
+        extracted_data: res.extracted_data,
       };
       jdStore.add(record);
       setJobs(jdStore.list());

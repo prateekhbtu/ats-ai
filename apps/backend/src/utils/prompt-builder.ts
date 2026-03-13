@@ -345,3 +345,34 @@ ${JSON.stringify(jdData, null, 2)}
 Generate interview questions tailored to this candidate and role.`,
   };
 }
+
+export function buildSectionOptimizationPrompt(
+  sectionPath: string,
+  selectedText: string,
+  instruction: string,
+  jdData?: JdExtractedData
+): { system: string; user: string } {
+  return {
+    system: `You are an ATS-focused resume rewriting assistant.
+${JSON_ONLY_INSTRUCTION}
+Rewrite ONLY the selected section text. Do not invent facts, metrics, employers, projects, degrees, or certifications.
+Keep meaning intact while improving clarity, impact, and ATS relevance.
+Do not modify unrelated sections.
+
+Return valid JSON with this exact schema:
+{
+  "optimized_text": string
+}
+REMINDER: Return ONLY the JSON object. No markdown. No explanation. No code fences.`,
+    user: `Section path: ${sectionPath}
+Instruction: ${instruction}
+
+Job description context (optional):
+${jdData ? JSON.stringify(jdData, null, 2) : 'N/A'}
+
+Selected section text:
+---BEGIN SECTION---
+${selectedText}
+---END SECTION---`,
+  };
+}

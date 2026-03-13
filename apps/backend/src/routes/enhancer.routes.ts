@@ -6,7 +6,7 @@
 
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../types/index.js';
-import { enhanceResume, refineResume } from '../services/enhancer.service.js';
+import { enhanceResume, refineResume, manualEditEnhancedResume, optimizeSelectedSection } from '../services/enhancer.service.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { llmRateLimiter } from '../middleware/rate-limiter.middleware.js';
 import { ValidationError } from '../middleware/error-handler.middleware.js';
@@ -90,6 +90,70 @@ enhancerRoutes.post('/refine', llmRateLimiter(), async (c) => {
   const result = await refineResume(
     body.enhanced_resume_id,
     body.instructions,
+    userId,
+    c.env
+  );
+
+  return c.json(result, 200);
+});
+
+// POST /api/enhancer/manual-edit
+enhancerRoutes.post('/manual-edit', async (c) => {
+  const body = await c.req.json<{ enhanced_resume_id?: string; sections?: unknown }>().catch(() => null);
+
+  if (!body) {
+    throw new ValidationError('Request body is required');
+  }
+  if (!body.enhanced_resume_id || typeof body.enhanced_resume_id !== 'string') {
+    throw new ValidationError('enhanced_resume_id is required');
+  }
+  if (!isValidUUID(body.enhanced_resume_id)) {
+    throw new ValidationError('Invalid enhanced_resume_id format');
+  }
+  if (!body.sections || typeof body.sections !== 'object') {
+    throw new ValidationError('sections is required');
+  }
+
+  const userId = c.get('userId');
+  const result = await manualEditEnhancedResume(
+    body.enhanced_resume_id,
+    body.sections as import('../types/index.js').ResumeSections,
+    userId,
+    c.env
+  );
+
+  return c.json(result, 200);
+});
+
+// POST /api/enhancer/optimize-section
+enhancerRoutes.post('/optimize-section', llmRateLimiter(), async (c) => {
+  const body = await c.req.json<{
+    enhanced_resume_id?: string;
+    section_path?: string;
+    instruction?: string;
+  }>().catch(() => null);
+
+  if (!body) {
+    throw new ValidationError('Request body is required');
+  }
+  if (!body.enhanced_resume_id || typeof body.enhanced_resume_id !== 'string') {
+    throw new ValidationError('enhanced_resume_id is required');
+  }
+  if (!isValidUUID(body.enhanced_resume_id)) {
+    throw new ValidationError('Invalid enhanced_resume_id format');
+  }
+  if (!body.section_path || typeof body.section_path !== 'string') {
+    throw new ValidationError('section_path is required');
+  }
+  if (!body.instruction || typeof body.instruction !== 'string' || body.instruction.trim().length < 3) {
+    throw new ValidationError('instruction is required and must be at least 3 characters');
+  }
+
+  const userId = c.get('userId');
+  const result = await optimizeSelectedSection(
+    body.enhanced_resume_id,
+    body.section_path,
+    body.instruction,
     userId,
     c.env
   );

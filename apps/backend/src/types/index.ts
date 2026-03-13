@@ -128,6 +128,7 @@ export interface VersionRow {
   entity_id: string;
   version_number: number;
   content_snapshot: string;
+  diff?: string;
   created_at: string;
 }
 

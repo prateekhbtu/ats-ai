@@ -184,7 +184,12 @@ export interface EnhancedResumeResult {
   id: string;
   version: number;
   enhanced_sections: ResumeSections;
+  enhanced_text?: string;
   diff: DiffResult[];
+  hallucination_check?: {
+    is_valid: boolean;
+    violations_count: number;
+  };
 }
 
 export interface WritingIssue {
@@ -214,6 +219,7 @@ export interface Version {
   entity_id: string;
   version_number: number;
   created_at: string;
+  diff?: DiffResult[];
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -346,6 +352,18 @@ export const enhancerApi = {
     request<EnhancedResumeResult>('/api/enhancer/refine', {
       method: 'POST',
       body: JSON.stringify({ enhanced_resume_id, instructions }),
+    }),
+
+  manualEdit: (enhanced_resume_id: string, sections: ResumeSections) =>
+    request<EnhancedResumeResult>('/api/enhancer/manual-edit', {
+      method: 'POST',
+      body: JSON.stringify({ enhanced_resume_id, sections }),
+    }),
+
+  optimizeSection: (enhanced_resume_id: string, section_path: string, instruction: string) =>
+    request<EnhancedResumeResult>('/api/enhancer/optimize-section', {
+      method: 'POST',
+      body: JSON.stringify({ enhanced_resume_id, section_path, instruction }),
     }),
 };
 

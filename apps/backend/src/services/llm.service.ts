@@ -51,7 +51,7 @@ export async function callLlm(config: LlmConfig, request: LlmRequest): Promise<L
 }
 
 async function callVertexAiGenerateContent(config: LlmConfig, accessToken: string, request: LlmRequest): Promise<LlmResponse> {
-  const url = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/gemini-2.0-flash:generateContent`;
+  const url = `https://${config.location}-aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/gemini-2.5-flash:generateContent`;
 
   const parts: any[] = [];
   if (request.file_data) {

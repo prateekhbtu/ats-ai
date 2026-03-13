@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Sparkles, Download, CheckCircle2, AlertCircle, FileText,
@@ -15,27 +15,44 @@ import { resumeStore, jdStore, optimizationStore, type ResumeRecord, type JdReco
 type Tab = 'resume' | 'coverLetter';
 type AssistantTab = 'insights' | 'suggestions' | 'coverLetterSettings';
 
-function renderSections(sections: ResumeSections) {
+function renderSections(
+  sections: ResumeSections,
+  lowRelevanceSections: Set<string>,
+  onSelectPath?: (path: string) => void,
+) {
+  const relevanceNote = (
+    <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1 mb-2">
+      Not strongly related to the selected job description.
+    </div>
+  );
+
+  const clickable = (path: string) => onSelectPath ? {
+    onClick: () => onSelectPath(path),
+    className: 'cursor-pointer hover:bg-orange-50 rounded px-1 -mx-1',
+  } : {};
+
   return (
     <div className="space-y-6">
       {sections.summary && (
         <div>
+          {lowRelevanceSections.has('summary') && relevanceNote}
           <h4 className="text-xs font-bold text-gray-900 uppercase tracking-widest mb-3 border-b border-gray-200 pb-1">Summary</h4>
-          <p className="text-sm text-gray-700 leading-relaxed">{sections.summary}</p>
+          <p {...clickable('summary')} className={cn('text-sm text-gray-700 leading-relaxed', onSelectPath ? 'cursor-pointer hover:bg-orange-50 rounded px-1 -mx-1' : '')}>{sections.summary}</p>
         </div>
       )}
       {sections.experience && sections.experience.length > 0 && (
         <div>
+          {lowRelevanceSections.has('experience') && relevanceNote}
           <h4 className="text-xs font-bold text-gray-900 uppercase tracking-widest mb-3 border-b border-gray-200 pb-1">Experience</h4>
           {sections.experience.map((exp, i) => (
-            <div key={i} className="mb-5">
+            <div key={i} className="mb-5" {...clickable(`experience.${i}`)}>
               <div className="flex justify-between items-baseline mb-0.5">
-                <h5 className="font-semibold text-gray-900 text-sm">{exp.title}</h5>
-                <span className="text-xs text-gray-500">{exp.duration}</span>
+                <h5 className="font-semibold text-gray-900 text-sm" {...clickable(`experience.${i}.title`)}>{exp.title}</h5>
+                <span className="text-xs text-gray-500" {...clickable(`experience.${i}.duration`)}>{exp.duration}</span>
               </div>
-              <p className="text-xs text-gray-500 mb-2 italic">{exp.company}</p>
+              <p className="text-xs text-gray-500 mb-2 italic" {...clickable(`experience.${i}.company`)}>{exp.company}</p>
               <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1.5 leading-relaxed">
-                {exp.bullets.map((b, j) => <li key={j}>{b}</li>)}
+                {exp.bullets.map((b, j) => <li key={j} {...clickable(`experience.${i}.bullets.${j}`)}>{b}</li>)}
               </ul>
             </div>
           ))}
@@ -43,26 +60,64 @@ function renderSections(sections: ResumeSections) {
       )}
       {sections.skills && sections.skills.length > 0 && (
         <div>
+          {lowRelevanceSections.has('skills') && relevanceNote}
           <h4 className="text-xs font-bold text-gray-900 uppercase tracking-widest mb-3 border-b border-gray-200 pb-1">Skills</h4>
           <div className="flex flex-wrap gap-2">
             {sections.skills.map((s, i) => (
-              <span key={i} className="px-2.5 py-1 bg-gray-100 text-gray-700 text-xs rounded-lg border border-gray-200">{s}</span>
+              <span key={i} className="px-2.5 py-1 bg-gray-100 text-gray-700 text-xs rounded-lg border border-gray-200 cursor-pointer hover:bg-orange-50" {...clickable(`skills.${i}`)}>{s}</span>
             ))}
           </div>
         </div>
       )}
       {sections.education && sections.education.length > 0 && (
         <div>
+          {lowRelevanceSections.has('education') && relevanceNote}
           <h4 className="text-xs font-bold text-gray-900 uppercase tracking-widest mb-3 border-b border-gray-200 pb-1">Education</h4>
           {sections.education.map((edu, i) => (
-            <div key={i} className="mb-3">
+            <div key={i} className="mb-3" {...clickable(`education.${i}`)}>
               <div className="flex justify-between items-baseline">
-                <h5 className="font-semibold text-gray-900 text-sm">{edu.degree}</h5>
-                <span className="text-xs text-gray-500">{edu.year}</span>
+                <h5 className="font-semibold text-gray-900 text-sm" {...clickable(`education.${i}.degree`)}>{edu.degree}</h5>
+                <span className="text-xs text-gray-500" {...clickable(`education.${i}.year`)}>{edu.year}</span>
               </div>
-              <p className="text-xs text-gray-500">{edu.institution}</p>
+              <p className="text-xs text-gray-500" {...clickable(`education.${i}.institution`)}>{edu.institution}</p>
+              {edu.details && <p className="text-xs text-gray-600 mt-1" {...clickable(`education.${i}.details`)}>{edu.details}</p>}
             </div>
           ))}
+        </div>
+      )}
+      {sections.projects && sections.projects.length > 0 && (
+        <div>
+          {lowRelevanceSections.has('projects') && relevanceNote}
+          <h4 className="text-xs font-bold text-gray-900 uppercase tracking-widest mb-3 border-b border-gray-200 pb-1">Projects</h4>
+          {sections.projects.map((proj, i) => (
+            <div key={i} className="mb-4" {...clickable(`projects.${i}`)}>
+              <h5 className="font-semibold text-gray-900 text-sm" {...clickable(`projects.${i}.name`)}>{proj.name}</h5>
+              <p className="text-sm text-gray-700 mt-1" {...clickable(`projects.${i}.description`)}>{proj.description}</p>
+              {proj.technologies?.length > 0 && (
+                <p className="text-xs text-gray-500 mt-1" {...clickable(`projects.${i}.technologies`)}>
+                  Technologies: {proj.technologies.join(', ')}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {sections.certifications && sections.certifications.length > 0 && (
+        <div>
+          {lowRelevanceSections.has('certifications') && relevanceNote}
+          <h4 className="text-xs font-bold text-gray-900 uppercase tracking-widest mb-3 border-b border-gray-200 pb-1">Certifications</h4>
+          <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1">
+            {sections.certifications.map((c, i) => <li key={i} {...clickable(`certifications.${i}`)}>{c}</li>)}
+          </ul>
+        </div>
+      )}
+      {sections.other && sections.other.length > 0 && (
+        <div>
+          {lowRelevanceSections.has('other') && relevanceNote}
+          <h4 className="text-xs font-bold text-gray-900 uppercase tracking-widest mb-3 border-b border-gray-200 pb-1">Other</h4>
+          <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1">
+            {sections.other.map((o, i) => <li key={i} {...clickable(`other.${i}`)}>{o}</li>)}
+          </ul>
         </div>
       )}
     </div>
@@ -94,6 +149,14 @@ export function Editor() {
   const [refineInstructions, setRefineInstructions] = useState('');
   const [refining, setRefining] = useState(false);
 
+  // Manual edit + section optimization
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editableJson, setEditableJson] = useState('');
+  const [savingManualEdit, setSavingManualEdit] = useState(false);
+  const [selectedSectionPath, setSelectedSectionPath] = useState<string>('');
+  const [sectionInstruction, setSectionInstruction] = useState('');
+  const [optimizingSection, setOptimizingSection] = useState(false);
+
   // Errors
   const [error, setError] = useState<string | null>(null);
 
@@ -108,6 +171,36 @@ export function Editor() {
 
   const selectedResume = resumes.find((r) => r.id === resumeId);
   const selectedJob = jobs.find((j) => j.id === jdId);
+
+  const lowRelevanceSections = useMemo(() => {
+    const result = new Set<string>();
+    if (!enhanceResult?.enhanced_sections) return result;
+    const jdKeywords = [
+      ...(selectedJob?.extracted_data?.required_skills || []),
+      ...(selectedJob?.extracted_data?.preferred_skills || []),
+      ...((selectedJob?.title || '').split(/\s+/)),
+    ].map(k => k.toLowerCase()).filter(k => k.length > 2);
+    if (jdKeywords.length === 0) return result;
+
+    const sections = enhanceResult.enhanced_sections;
+    const sectionText: Record<string, string> = {
+      summary: sections.summary || '',
+      experience: (sections.experience || []).flatMap(e => [e.title, e.company, ...(e.bullets || [])]).join(' '),
+      education: (sections.education || []).flatMap(e => [e.degree, e.institution, e.details]).join(' '),
+      skills: (sections.skills || []).join(' '),
+      certifications: (sections.certifications || []).join(' '),
+      projects: (sections.projects || []).flatMap(p => [p.name, p.description, ...(p.technologies || [])]).join(' '),
+      other: (sections.other || []).join(' '),
+    };
+
+    for (const [key, text] of Object.entries(sectionText)) {
+      if (!text.trim()) continue;
+      const lower = text.toLowerCase();
+      const hit = jdKeywords.some(k => lower.includes(k));
+      if (!hit) result.add(key);
+    }
+    return result;
+  }, [enhanceResult, selectedJob]);
 
   async function handleScore() {
     if (!resumeId || !jdId) { setError('Please select a resume and a job.'); return; }
@@ -132,6 +225,7 @@ export function Editor() {
     try {
       const result = await enhancerApi.enhance(resumeId, jdId, scoreResult.analysis_id);
       setEnhanceResult(result);
+      setEditableJson(JSON.stringify(result.enhanced_sections, null, 2));
       setAssistantTab('suggestions');
       setActiveTab('resume');
       // Save to optimization store
@@ -162,6 +256,7 @@ export function Editor() {
     try {
       const result = await enhancerApi.refine(enhanceResult.id, refineInstructions);
       setEnhanceResult(result);
+      setEditableJson(JSON.stringify(result.enhanced_sections, null, 2));
       setRefineInstructions('');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Refinement failed.');
@@ -183,6 +278,114 @@ export function Editor() {
     } finally {
       setGeneratingCL(false);
     }
+  }
+
+  async function handleSaveManualEdit() {
+    if (!enhanceResult) return;
+    setSavingManualEdit(true);
+    setError(null);
+    try {
+      const parsed = JSON.parse(editableJson) as ResumeSections;
+      const result = await enhancerApi.manualEdit(enhanceResult.id, parsed);
+      setEnhanceResult(result);
+      setEditableJson(JSON.stringify(result.enhanced_sections, null, 2));
+      setIsEditMode(false);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Manual save failed.');
+    } finally {
+      setSavingManualEdit(false);
+    }
+  }
+
+  async function handleOptimizeSelectedSection() {
+    if (!enhanceResult || !selectedSectionPath || !sectionInstruction.trim()) return;
+    setOptimizingSection(true);
+    setError(null);
+    try {
+      const result = await enhancerApi.optimizeSection(enhanceResult.id, selectedSectionPath, sectionInstruction.trim());
+      setEnhanceResult(result);
+      setEditableJson(JSON.stringify(result.enhanced_sections, null, 2));
+      setSectionInstruction('');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Section optimization failed.');
+    } finally {
+      setOptimizingSection(false);
+    }
+  }
+
+  function escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function buildResumeHtmlForExport(sections: ResumeSections): string {
+    const lineItems = (items: string[]) => items.map(i => `<li>${escapeHtml(i)}</li>`).join('');
+    const experience = (sections.experience || []).map((e) => `
+      <div class="item">
+        <div class="row"><h3>${escapeHtml(e.title)}</h3><span>${escapeHtml(e.duration || '')}</span></div>
+        <p class="muted">${escapeHtml(e.company || '')}</p>
+        <ul>${lineItems(e.bullets || [])}</ul>
+      </div>
+    `).join('');
+    const education = (sections.education || []).map((e) => `
+      <div class="item">
+        <div class="row"><h3>${escapeHtml(e.degree)}</h3><span>${escapeHtml(e.year || '')}</span></div>
+        <p class="muted">${escapeHtml(e.institution || '')}</p>
+        ${e.details ? `<p>${escapeHtml(e.details)}</p>` : ''}
+      </div>
+    `).join('');
+    const projects = (sections.projects || []).map((p) => `
+      <div class="item">
+        <h3>${escapeHtml(p.name)}</h3>
+        <p>${escapeHtml(p.description || '')}</p>
+        ${p.technologies?.length ? `<p class="muted">Technologies: ${escapeHtml(p.technologies.join(', '))}</p>` : ''}
+      </div>
+    `).join('');
+
+    return `<!doctype html><html><head><meta charset="utf-8" />
+      <title>Optimized Resume</title>
+      <style>
+      body{font-family:Arial,Helvetica,sans-serif;margin:36px;color:#111;line-height:1.4}
+      h2{font-size:12px;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #ddd;padding-bottom:4px;margin:18px 0 10px}
+      h3{font-size:14px;margin:0;font-weight:700}
+      .row{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+      .muted{font-size:12px;color:#666;margin:2px 0 6px}
+      .item{margin-bottom:10px}
+      ul{margin:6px 0 0 16px;padding:0}
+      li{margin:3px 0}
+      .chips{font-size:12px}
+      </style></head><body>
+      ${sections.summary ? `<h2>Summary</h2><p>${escapeHtml(sections.summary)}</p>` : ''}
+      ${(sections.experience || []).length ? `<h2>Experience</h2>${experience}` : ''}
+      ${(sections.skills || []).length ? `<h2>Skills</h2><p class="chips">${escapeHtml((sections.skills || []).join(', '))}</p>` : ''}
+      ${(sections.education || []).length ? `<h2>Education</h2>${education}` : ''}
+      ${(sections.projects || []).length ? `<h2>Projects</h2>${projects}` : ''}
+      ${(sections.certifications || []).length ? `<h2>Certifications</h2><ul>${lineItems(sections.certifications || [])}</ul>` : ''}
+      ${(sections.other || []).length ? `<h2>Other</h2><ul>${lineItems(sections.other || [])}</ul>` : ''}
+      </body></html>`;
+  }
+
+  function handleExportPdf() {
+    const sections = enhanceResult?.enhanced_sections;
+    if (!sections) {
+      setError('Nothing to export yet. Enhance a resume first.');
+      return;
+    }
+    const html = buildResumeHtmlForExport(sections);
+    const win = window.open('', '_blank');
+    if (!win) {
+      setError('Popup blocked. Please allow popups to export PDF.');
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 250);
   }
 
   const scoreColor = scoreResult
@@ -231,7 +434,10 @@ export function Editor() {
             {scoring ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
             Analyze
           </button>
-          <button className="inline-flex items-center gap-1.5 bg-[#0A0A0A] text-white px-3 sm:px-4 py-2 rounded-lg text-xs font-medium hover:bg-black/80 transition-colors shadow-md">
+          <button
+            onClick={handleExportPdf}
+            className="inline-flex items-center gap-1.5 bg-[#0A0A0A] text-white px-3 sm:px-4 py-2 rounded-lg text-xs font-medium hover:bg-black/80 transition-colors shadow-md"
+          >
             <Download size={14} /> <span className="hidden sm:inline">Export PDF</span>
           </button>
         </div>
@@ -302,7 +508,7 @@ export function Editor() {
                         <h3 className="text-2xl font-light tracking-tight text-gray-900 mb-1 uppercase">Enhanced Resume</h3>
                         <p className="text-xs text-gray-400">Version {enhanceResult.version} • AI-Optimized</p>
                       </div>
-                      {renderSections(enhanceResult.enhanced_sections)}
+                      {renderSections(enhanceResult.enhanced_sections, lowRelevanceSections, setSelectedSectionPath)}
                     </>
                   ) : (
                     <div className="flex flex-col items-center justify-center min-h-[500px] text-center">
@@ -450,6 +656,66 @@ export function Editor() {
                       <div className="flex items-center gap-2 p-3 bg-orange-50 border border-orange-100 rounded-xl text-orange-800 text-xs mb-4">
                         <Sparkles size={15} className="shrink-0" />
                         <p><strong>{enhanceResult.diff.filter(d => d.change_type !== 'unchanged').length} changes</strong> applied in version {enhanceResult.version}.</p>
+                      </div>
+
+                      <div className="border border-gray-200 rounded-2xl p-4 bg-white shadow-sm">
+                        <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-2 flex items-center gap-2">
+                          <PenTool size={13} /> Manual Edit (all sections)
+                        </h3>
+                        <div className="flex items-center justify-between mb-2">
+                          <button
+                            onClick={() => {
+                              if (!enhanceResult) return;
+                              setEditableJson(JSON.stringify(enhanceResult.enhanced_sections, null, 2));
+                              setIsEditMode(v => !v);
+                            }}
+                            className="text-xs px-2 py-1 border border-gray-200 rounded-md hover:bg-gray-50"
+                          >
+                            {isEditMode ? 'Close Editor' : 'Open JSON Editor'}
+                          </button>
+                          {isEditMode && (
+                            <button
+                              onClick={handleSaveManualEdit}
+                              disabled={savingManualEdit}
+                              className="text-xs px-2 py-1 bg-black text-white rounded-md disabled:opacity-50"
+                            >
+                              {savingManualEdit ? 'Saving…' : 'Save as New Version'}
+                            </button>
+                          )}
+                        </div>
+                        {isEditMode && (
+                          <textarea
+                            value={editableJson}
+                            onChange={(e) => setEditableJson(e.target.value)}
+                            className="w-full h-40 text-[11px] font-mono bg-gray-50 border border-gray-200 rounded-lg p-2"
+                          />
+                        )}
+                      </div>
+
+                      <div className="border border-gray-200 rounded-2xl p-4 bg-white shadow-sm">
+                        <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-2 flex items-center gap-2">
+                          <Sparkles size={13} /> Section-level Optimization
+                        </h3>
+                        <p className="text-[11px] text-gray-500 mb-2">
+                          Click any section text on the resume preview to select it, then provide an instruction.
+                        </p>
+                        <div className="text-[11px] mb-2 px-2 py-1 rounded bg-gray-50 border border-gray-200 break-all">
+                          Selected path: <strong>{selectedSectionPath || 'None'}</strong>
+                        </div>
+                        <textarea
+                          value={sectionInstruction}
+                          onChange={(e) => setSectionInstruction(e.target.value)}
+                          placeholder='e.g. "Make this bullet more impact-focused and concise"'
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 resize-none h-20"
+                        />
+                        <button
+                          onClick={handleOptimizeSelectedSection}
+                          disabled={optimizingSection || !selectedSectionPath || !sectionInstruction.trim()}
+                          className="w-full mt-2 bg-white border border-gray-200 text-gray-900 text-xs font-medium py-2 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {optimizingSection ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                          {optimizingSection ? 'Optimizing…' : 'Optimize Selected Section'}
+                        </button>
                       </div>
 
                       <div className="space-y-3 max-h-[360px] overflow-y-auto">

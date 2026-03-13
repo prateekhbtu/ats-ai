@@ -128,3 +128,11 @@ export const interviewQuestionsSchema = {
   },
   required: ['questions'],
 } as const;
+
+export const sectionOptimizationSchema = {
+  type: 'OBJECT',
+  properties: {
+    optimized_text: { type: 'STRING' },
+  },
+  required: ['optimized_text'],
+} as const;

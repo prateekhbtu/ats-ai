@@ -127,8 +127,11 @@ CREATE TABLE IF NOT EXISTS versions (
   entity_id UUID NOT NULL,
   version_number INTEGER NOT NULL DEFAULT 1,
   content_snapshot JSONB NOT NULL,
+  diff JSONB NOT NULL DEFAULT '[]',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE versions ADD COLUMN IF NOT EXISTS diff JSONB NOT NULL DEFAULT '[]';
 
 CREATE INDEX IF NOT EXISTS idx_versions_user_resume ON versions(user_id, resume_id);
 CREATE INDEX IF NOT EXISTS idx_versions_entity ON versions(entity_type, entity_id);
