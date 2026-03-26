@@ -106,7 +106,11 @@ resumeRoutes.delete('/:id', async (c) => {
     throw new ValidationError('Valid resume ID is required');
   }
 
-  await deleteResume(resumeId, userId, c.env.DATABASE_URL);
+  const supabaseConfig = c.env.SUPABASE_URL && c.env.SUPABASE_SECRET_KEY
+    ? { supabaseUrl: c.env.SUPABASE_URL, supabaseSecretKey: c.env.SUPABASE_SECRET_KEY }
+    : undefined;
+
+  await deleteResume(resumeId, userId, c.env.DATABASE_URL, supabaseConfig);
 
   return c.json({ message: 'Resume deleted successfully' }, 200);
 });

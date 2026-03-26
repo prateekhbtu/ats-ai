@@ -200,13 +200,18 @@ export async function listUserJds(userId: string, databaseUrl: string) {
     `SELECT id, source_url, extracted_data, created_at, updated_at FROM job_descriptions WHERE user_id = $1 ORDER BY created_at DESC`,
     [userId]
   );
-  return items.map(jd => ({
-    id: jd.id,
-    source_url: jd.source_url,
-    extracted_data: (typeof jd.extracted_data === 'string' ? JSON.parse(jd.extracted_data) : jd.extracted_data) as JdExtractedData,
-    created_at: jd.created_at,
-    updated_at: jd.updated_at,
-  }));
+  return items.map(jd => {
+    const extracted = (typeof jd.extracted_data === 'string' ? JSON.parse(jd.extracted_data) : jd.extracted_data) as JdExtractedData;
+    return {
+      id: jd.id,
+      title: extracted.title,
+      company: extracted.company,
+      url: jd.source_url ?? undefined,
+      extracted_data: extracted,
+      created_at: jd.created_at,
+      updated_at: jd.updated_at,
+    };
+  });
 }
 
 /**
@@ -214,10 +219,30 @@ export async function listUserJds(userId: string, databaseUrl: string) {
  */
 export async function deleteJd(jdId: string, userId: string, databaseUrl: string): Promise<boolean> {
   const { execute } = await import('./db.service.js');
-  const result = await execute(
+  await execute(
     databaseUrl,
     `DELETE FROM job_descriptions WHERE id = $1 AND user_id = $2`,
     [jdId, userId]
   );
-  return result > 0;
+  return true;
+}
+
+/**
+ * Update a user's JD extracted data.
+ */
+export async function updateJd(jdId: string, userId: string, databaseUrl: string, extractedData: JdExtractedData): Promise<{ id: string; extracted_data: JdExtractedData }> {
+  const { queryOne } = await import('./db.service.js');
+  const jd = await queryOne<JdRow>(
+    databaseUrl,
+    `UPDATE job_descriptions SET extracted_data = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3 RETURNING *`,
+    [JSON.stringify(extractedData), jdId, userId]
+  );
+  if (!jd) {
+    const { NotFoundError } = await import('../middleware/error-handler.middleware.js');
+    throw new NotFoundError('Job description not found or not owned by user');
+  }
+  return {
+    id: jd.id,
+    extracted_data: (typeof jd.extracted_data === 'string' ? JSON.parse(jd.extracted_data) : jd.extracted_data) as JdExtractedData,
+  };
 }

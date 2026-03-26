@@ -15,6 +15,8 @@ export interface Env {
   CLOUDINARY_API_SECRET: string;
   FRONTEND_URL: string;
   ENVIRONMENT: string;
+  SUPABASE_URL: string;
+  SUPABASE_SECRET_KEY: string;
 }
 // ─── LLM Configuration ────────────────────────────────────────────
 export interface LlmConfig {
@@ -66,6 +68,7 @@ export interface ResumeRow {
   id: string;
   user_id: string;
   original_filename: string;
+  file_url: string | null;  // Supabase Storage public URL
   raw_text: string;
   sections: string; // JSON-serialized ResumeSections
   created_at: string;
@@ -198,7 +201,7 @@ export interface DiffResult {
   change_type: 'modified' | 'added' | 'removed' | 'unchanged';
 }
 
-export type CoverLetterTone = 'formal' | 'conversational' | 'assertive';
+export type CoverLetterTone = 'formal' | 'conversational' | 'assertive' | 'enthusiastic';
 
 export interface WritingIssue {
   type: 'weak_phrasing' | 'long_sentence' | 'passive_voice' | 'grammar_risk' | 'clarity';
@@ -291,6 +294,7 @@ export interface DeleteAccountRequest {
 
 export interface ResumeUploadResponse {
   id: string;
+  file_url: string | null;
   sections: ResumeSections;
   raw_text: string;
 }

@@ -7,7 +7,6 @@ import {
 import { useNavigate, Link } from 'react-router-dom';
 import { resumeApi, type StandaloneScoreResult } from '../lib/api';
 import { resumeStore } from '../lib/storage';
-import { saveResumeFile } from '../lib/idb';
 import { useAuth } from '../contexts/AuthContext';
 
 export function Upload() {
@@ -33,12 +32,10 @@ export function Upload() {
     try {
       const res = await resumeApi.upload(file);
       
-      // Cache the raw file for the Editor to proudly show the "exact uploaded resume" later
-      await saveResumeFile(res.id, file).catch(console.error);
-      
       resumeStore.add({
         id: res.id,
         original_filename: file.name,
+        file_url: res.file_url ?? null,
         created_at: new Date().toISOString(),
       });
 

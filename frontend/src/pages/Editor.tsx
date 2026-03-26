@@ -11,7 +11,6 @@ import {
   type ResumeDetail,
 } from '../lib/api';
 import { resumeStore, jdStore, type ResumeRecord, type JdRecord } from '../lib/storage';
-import { getResumeFile } from '../lib/idb';
 import { ExportModal } from '../components/ExportModal';
 
 // ─── Resume Preview Renderer ────────────────────────────────────────────────
@@ -558,7 +557,7 @@ export function Editor() {
     loadResources();
   }, []);
 
-  // Load original resume when selection changes -- FIX: Backend returns resume directly, NOT { resume: ... }
+  // Load original resume when selection changes
   useEffect(() => {
     if (!resumeId) {
       setOriginalResume(null);
@@ -567,27 +566,20 @@ export function Editor() {
     }
     setLoadingResume(true);
     setError(null);
-    
-    // Attempt to load exact PDF from local IndexedDB wrapper to show exactly what they uploaded
-    getResumeFile(resumeId).then(blob => {
-       if (blob) setPdfUrl(URL.createObjectURL(blob));
-       else setPdfUrl(null);
-    }).catch(() => setPdfUrl(null));
+    setPdfUrl(null); // Clear previous URL while loading
 
     resumeApi.get(resumeId)
       .then((data) => {
         // Backend returns the resume directly (not wrapped in { resume: ... })
-        const resume = (data as any).resume ?? data;
-        setOriginalResume(resume as ResumeDetail);
+        const resume = ('resume' in data ? data.resume : data) as unknown as ResumeDetail;
+        setOriginalResume(resume);
+        if (resume.file_url) {
+          setPdfUrl(resume.file_url);
+        }
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to load resume.'))
       .finally(() => setLoadingResume(false));
   }, [resumeId]);
-
-  // Clean up Object URL to prevent memory leaks
-  useEffect(() => {
-    return () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); };
-  }, [pdfUrl]);
 
   async function handleRun() {
     if (!resumeId || !jdId) {
@@ -772,14 +764,14 @@ export function Editor() {
         {/* LEFT: Original Resume */}
         <div className="flex-1 lg:flex-[1_1_50%] border-b lg:border-b-0 lg:border-r border-gray-200 bg-gray-100/50 lg:overflow-y-auto relative flex flex-col min-h-[500px] lg:min-h-0">
           <div className="absolute inset-0 bg-grid-pattern opacity-20 pointer-events-none" />
-          <div className={`p-4 sm:p-6 relative z-10 flex flex-col ${pdfUrl ? 'h-full w-full' : 'justify-center min-h-full items-start'}`}>
+          <div className={`p-4 sm:p-6 relative z-10 flex flex-col ${pdfUrl ? 'h-full w-full' : 'min-h-full items-start'}`}>
             {loadingResume ? (
-              <div className="flex flex-col items-center justify-center min-h-[400px] gap-3 text-gray-500 w-full">
+              <div className="flex flex-col items-center justify-center min-h-[400px] gap-3 text-gray-500 w-full mt-20">
                 <Loader2 size={24} className="animate-spin" />
                 <p className="text-sm">Loading resume…</p>
               </div>
             ) : originalResume ? (
-              <div className={`w-full h-full flex flex-col pt-2 ${!pdfUrl ? 'max-w-[700px] mx-auto' : ''}`}>
+              <div className={`w-full flex flex-col pt-2 ${!pdfUrl ? 'max-w-[800px] mx-auto' : 'h-full'}`}>
                 <div className="mb-3 flex items-center justify-between shrink-0">
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Original Resume</span>
                   {pdfUrl && <span className="text-[10px] font-bold text-green-700 uppercase tracking-widest bg-green-100 px-2 py-0.5 rounded shadow-sm border border-green-300">Exact Uploaded File</span>}

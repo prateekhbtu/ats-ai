@@ -95,6 +95,25 @@ jdRoutes.delete('/:id', async (c) => {
   return c.json({ success: true }, 200);
 });
 
+// PUT /api/jd/:id
+jdRoutes.put('/:id', async (c) => {
+  const jdId = c.req.param('id');
+  const userId = c.get('userId');
+
+  if (!jdId || !isValidUUID(jdId)) {
+    throw new ValidationError('Valid jd_id is required');
+  }
+
+  const body = await c.req.json().catch(() => null);
+  if (!body || !body.extracted_data) {
+    throw new ValidationError('extracted_data is required');
+  }
+
+  const { updateJd } = await import('../services/jd-parser.service.js');
+  const result = await updateJd(jdId, userId, c.env.DATABASE_URL, body.extracted_data);
+  return c.json(result, 200);
+});
+
 function isValidUUID(str: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 }

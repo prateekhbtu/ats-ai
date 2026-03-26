@@ -4,6 +4,7 @@
 export interface ResumeRecord {
   id: string;
   original_filename: string;
+  file_url?: string | null;    // Supabase Storage public URL (set after upload)
   created_at: string;
   ats_score?: number;
 }
@@ -110,6 +111,11 @@ export const jdStore = {
       scopedKey('jds'),
       jdStore.list().filter((j) => j.id !== id),
     );
+  },
+
+  update: (id: string, updates: Partial<JdRecord>) => {
+    const items = jdStore.list().map(j => j.id === id ? { ...j, ...updates } : j);
+    save(scopedKey('jds'), items);
   },
 
   setAll: (records: JdRecord[]) => {

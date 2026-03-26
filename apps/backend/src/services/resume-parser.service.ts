@@ -11,6 +11,7 @@ import { checkForInjection } from '../utils/injection-guard.js';
 import { resumeSectionsSchema } from '../utils/vertex-response-schemas.js';
 import { computeReadabilityScore } from '../utils/readability-score.js';
 import { validateSections } from '../utils/section-validator.js';
+import { uploadResumeToSupabase, deleteResumeFromSupabase } from './supabase.service.js';
 import type { ResumeRow, ResumeSections, Env } from '../types/index.js';
 import { ValidationError, NotFoundError, LlmError } from '../middleware/error-handler.middleware.js';
 
@@ -293,18 +294,32 @@ function normalizeSections(sections: ResumeSections): ResumeSections {
 }
 
 /**
- * Upload and process a resume: extract text, parse sections, store in DB.
+ * Upload and process a resume: upload to Supabase Storage, extract text,
+ * parse sections via LLM, and store metadata + file_url in Neon DB.
  */
 export async function uploadAndParseResume(
   fileBuffer: ArrayBuffer,
   fileName: string,
   userId: string,
   env: Env
-): Promise<{ id: string; sections: ResumeSections; raw_text: string }> {
+): Promise<{ id: string; file_url: string | null; sections: ResumeSections; raw_text: string }> {
   const extension = fileName.toLowerCase().split('.').pop();
 
-  let rawText: string;
+  // ── 1. Upload raw file to Supabase Storage ──────────────────────
+  let fileUrl: string | null = null;
+  if (!env.SUPABASE_URL || !env.SUPABASE_SECRET_KEY) {
+    throw new ValidationError('Supabase credentials missing. Resume uploads require backend configuration.');
+  }
+  
+  fileUrl = await uploadResumeToSupabase(
+    { supabaseUrl: env.SUPABASE_URL, supabaseSecretKey: env.SUPABASE_SECRET_KEY },
+    fileBuffer,
+    fileName,
+    userId,
+  );
 
+  // ── 2. Extract text ─────────────────────────────────────────────
+  let rawText: string;
   if (extension === 'pdf') {
     rawText = extractTextFromPdf(fileBuffer);
   } else if (extension === 'docx' || extension === 'doc') {
@@ -313,21 +328,21 @@ export async function uploadAndParseResume(
     throw new ValidationError('Unsupported file format. Please upload a PDF or DOCX file.');
   }
 
-  // Normalise extracted text before passing to LLM
   rawText = cleanResumeText(rawText);
 
   if (rawText.trim().length < 20) {
-    // If we fail to extract text entirely, we will just rely purely on multimodal Vertex AI capability.
     console.log('Very little text extracted, relying mostly on Vertex AI multimodal extraction.');
   }
 
+  // ── 3. Parse sections via LLM ────────────────────────────────────
   const sections = await parseResumeSections(rawText, getLlmConfig(env), fileBuffer, extension);
 
+  // ── 4. Store in Neon ─────────────────────────────────────────────
   const resume = await queryOne<ResumeRow>(
     env.DATABASE_URL,
-    `INSERT INTO resumes (id, user_id, original_filename, raw_text, sections)
-     VALUES (gen_random_uuid(), $1, $2, $3, $4) RETURNING *`,
-    [userId, fileName, rawText, JSON.stringify(sections)]
+    `INSERT INTO resumes (id, user_id, original_filename, file_url, raw_text, sections)
+     VALUES (gen_random_uuid(), $1, $2, $3, $4, $5) RETURNING *`,
+    [userId, fileName, fileUrl, rawText, JSON.stringify(sections)]
   );
 
   if (!resume) {
@@ -336,6 +351,7 @@ export async function uploadAndParseResume(
 
   return {
     id: resume.id,
+    file_url: resume.file_url ?? null,
     sections,
     raw_text: rawText,
   };
@@ -348,7 +364,7 @@ export async function getResumeById(
   resumeId: string,
   userId: string,
   databaseUrl: string
-): Promise<{ id: string; raw_text: string; sections: ResumeSections; original_filename: string; created_at: string }> {
+): Promise<{ id: string; raw_text: string; sections: ResumeSections; original_filename: string; file_url: string | null; created_at: string }> {
   const resume = await queryOne<ResumeRow>(
     databaseUrl,
     `SELECT * FROM resumes WHERE id = $1 AND user_id = $2`,
@@ -364,28 +380,34 @@ export async function getResumeById(
     raw_text: resume.raw_text,
     sections: (typeof resume.sections === 'string' ? JSON.parse(resume.sections) : resume.sections) as ResumeSections,
     original_filename: resume.original_filename,
+    file_url: resume.file_url ?? null,
     created_at: resume.created_at,
   };
 }
 
 /**
  * Delete a resume by ID with ownership check.
- * Versions have no FK on resume_id so they are explicitly removed first.
- * Analyses, enhanced_resumes, and cover_letters cascade via DB FK constraints.
+ * Also deletes the file from Supabase Storage if a URL is present.
  */
 export async function deleteResume(
   resumeId: string,
   userId: string,
-  databaseUrl: string
+  databaseUrl: string,
+  supabaseConfig?: { supabaseUrl: string; supabaseSecretKey: string }
 ): Promise<void> {
-  const resume = await queryOne<{ id: string }>(
+  const resume = await queryOne<{ id: string; file_url: string | null }>(
     databaseUrl,
-    `SELECT id FROM resumes WHERE id = $1 AND user_id = $2`,
+    `SELECT id, file_url FROM resumes WHERE id = $1 AND user_id = $2`,
     [resumeId, userId]
   );
 
   if (!resume) {
     throw new NotFoundError('Resume');
+  }
+
+  // Remove from Supabase Storage if we have a URL and config
+  if (resume.file_url && supabaseConfig) {
+    await deleteResumeFromSupabase(supabaseConfig, resume.file_url).catch(console.error);
   }
 
   // Delete versions first – no FK constraint on versions.resume_id
@@ -409,16 +431,17 @@ export async function deleteResume(
 export async function listResumes(
   userId: string,
   databaseUrl: string
-): Promise<{ id: string; original_filename: string; created_at: string; updated_at: string }[]> {
+): Promise<{ id: string; original_filename: string; file_url: string | null; created_at: string; updated_at: string }[]> {
   const rows = await query<ResumeRow>(
     databaseUrl,
-    `SELECT id, original_filename, created_at, updated_at FROM resumes WHERE user_id = $1 ORDER BY created_at DESC`,
+    `SELECT id, original_filename, file_url, created_at, updated_at FROM resumes WHERE user_id = $1 ORDER BY created_at DESC`,
     [userId]
   );
 
   return rows.map((r) => ({
     id: r.id,
     original_filename: r.original_filename,
+    file_url: r.file_url ?? null,
     created_at: r.created_at,
     updated_at: r.updated_at ?? r.created_at,
   }));

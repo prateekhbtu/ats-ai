@@ -140,6 +140,7 @@ export interface ResumeSections {
 export interface ResumeDetail {
   id: string;
   original_filename: string;
+  file_url: string | null;
   raw_text: string;
   sections: ResumeSections;
   created_at: string;
@@ -316,12 +317,12 @@ export const profileApi = {
 // ─── Resume ───────────────────────────────────────────────────────────────────
 
 export const resumeApi = {
-  list: () => request<{ resumes: { id: string; original_filename: string; created_at: string; updated_at: string }[] }>('/api/resume/list'),
+  list: () => request<{ resumes: { id: string; original_filename: string; file_url: string | null; created_at: string; updated_at: string }[] }>('/api/resume/list'),
 
   upload: (file: File) => {
     const form = new FormData();
     form.append('file', file);
-    return request<{ id: string; sections: ResumeSections; raw_text: string }>(
+    return request<{ id: string; file_url: string | null; sections: ResumeSections; raw_text: string }>(
       '/api/resume/upload',
       { method: 'POST', body: form },
     );
@@ -349,6 +350,11 @@ export const jdApi = {
     }),
   list: () =>
     request<{ jds: JdRecord[] }>('/api/jd/list'),
+  update: (id: string, extracted_data: JdExtractedData) =>
+    request<{ id: string; extracted_data: JdExtractedData }>(`/api/jd/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ extracted_data }),
+    }),
   delete: (id: string) =>
     request<{ success: boolean }>(`/api/jd/${id}`, {
       method: 'DELETE',
