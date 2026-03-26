@@ -21,7 +21,6 @@ export function Signup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Live password requirements — must match backend validatePassword()
   const pwChecks = {
     length: form.password.length >= 8,
     lower:  /[a-z]/.test(form.password),
@@ -52,7 +51,7 @@ export function Signup() {
     <div className="min-h-screen bg-[#0A0A0A] text-white flex flex-col relative overflow-hidden">
       <div className="absolute inset-0 bg-grid-pattern-dark opacity-20 pointer-events-none" />
 
-      <header className="p-6 relative z-10">
+      <header className="p-4 sm:p-6 relative z-10">
         <Link
           to="/"
           className="inline-flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-white transition-colors"
@@ -61,21 +60,21 @@ export function Signup() {
         </Link>
       </header>
 
-      <main className="flex-1 flex items-center justify-center p-6 relative z-10">
-        <div className="w-full max-w-5xl grid md:grid-cols-2 gap-12 items-center">
+      <main className="flex-1 flex items-center justify-center px-4 py-6 sm:p-6 relative z-10">
+        <div className="w-full max-w-5xl grid md:grid-cols-2 gap-8 lg:gap-12 items-center">
 
-          {/* Left: Value Prop */}
+          {/* Left: Value Prop (hidden on mobile) */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="hidden md:flex flex-col gap-8 pr-12"
+            className="hidden md:flex flex-col gap-8 pr-4 lg:pr-12"
           >
             <div>
-              <h1 className="text-4xl lg:text-5xl font-bold tracking-tight mb-4">
+              <h1 className="text-3xl lg:text-5xl font-bold tracking-tight mb-4">
                 Land your dream job faster.
               </h1>
-              <p className="text-gray-400 text-lg leading-relaxed">
+              <p className="text-gray-400 text-base lg:text-lg leading-relaxed">
                 Join thousands of professionals using atsai to bypass automated
                 filters and get noticed by human recruiters.
               </p>
@@ -85,7 +84,7 @@ export function Signup() {
               {FEATURES.map((feature) => (
                 <div key={feature} className="flex items-center gap-3 text-gray-300">
                   <CheckCircle2 size={20} className="text-orange-500 shrink-0" />
-                  <span>{feature}</span>
+                  <span className="text-sm lg:text-base">{feature}</span>
                 </div>
               ))}
             </div>
@@ -96,16 +95,17 @@ export function Signup() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-            className="bg-white/5 border border-white/10 backdrop-blur-xl rounded-3xl p-8 md:p-10 shadow-2xl"
+            className="bg-white/5 border border-white/10 backdrop-blur-xl rounded-2xl sm:rounded-3xl p-6 sm:p-8 md:p-10 shadow-2xl w-full"
           >
-            <div className="flex justify-center mb-6 md:hidden">
-              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-black shadow-lg">
-                <Layers size={24} strokeWidth={2.5} />
+            {/* Logo — mobile only */}
+            <div className="flex justify-center mb-5 md:hidden">
+              <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center text-black shadow-lg">
+                <Layers size={22} strokeWidth={2.5} />
               </div>
             </div>
 
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold tracking-tight text-white mb-2">
+            <div className="text-center mb-6 sm:mb-8">
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white mb-2">
                 Create your account
               </h2>
               <p className="text-sm text-gray-400">
@@ -114,7 +114,7 @@ export function Signup() {
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-300 text-sm mb-6">
+              <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-300 text-sm mb-5">
                 <AlertCircle size={16} className="shrink-0" />
                 {error}
               </div>
@@ -172,7 +172,6 @@ export function Signup() {
                   </button>
                 </div>
 
-                {/* Password requirements checklist — shown once user starts typing */}
                 {form.password.length > 0 && (
                   <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
                     {([
@@ -222,17 +221,12 @@ export function Signup() {
 
             <p className="text-center text-xs text-gray-500 leading-relaxed mt-4">
               By signing up you agree to our{' '}
-              <a href="#" className="underline hover:text-gray-300">
-                Terms
-              </a>{' '}
-              &amp;{' '}
-              <a href="#" className="underline hover:text-gray-300">
-                Privacy Policy
-              </a>
-              .
+              <a href="#" className="underline hover:text-gray-300">Terms</a>{' '}
+              &{' '}
+              <a href="#" className="underline hover:text-gray-300">Privacy Policy</a>.
             </p>
 
-            <div className="mt-6 text-center text-sm text-gray-400">
+            <div className="mt-5 text-center text-sm text-gray-400">
               Already have an account?{' '}
               <Link to="/login" className="font-semibold text-white hover:underline">
                 Log in

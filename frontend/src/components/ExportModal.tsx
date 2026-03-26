@@ -18,7 +18,8 @@ const TEMPLATES = [
   { id: 'professional', name: 'Professional', desc: 'Classic, clean, ATS-optimized layout with serif accents.' },
   { id: 'technical', name: 'Technical', desc: 'Compact monospace styling, perfect for engineers.' },
   { id: 'assertive', name: 'Assertive', desc: 'Bold headers and high-contrast lines for impact.' },
-  { id: 'modern', name: 'Modern', desc: 'Sleek sans-serif with subtle background highlights.' },
+  { id: 'modern', name: 'Modern', desc: 'Sleek sans-serif with orange accent highlights.' },
+  { id: 'elegant', name: 'Elegant', desc: 'Minimalist whitespace, refined typography.' },
 ];
 
 export function ExportModal({ isOpen, onClose, type, content, metadata }: ExportModalProps) {
@@ -88,11 +89,22 @@ export function ExportModal({ isOpen, onClose, type, content, metadata }: Export
         .muted { display: inline-block; font-style: italic; margin-bottom: 10px; }
       `;
     }
-    // modern (default)
+    // modern
+    if (tmpl === 'modern') {
+      return base + `
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        .section-title { color: #ea580c; border-bottom: 2px solid #fed7aa; }
+        .header h1 { color: #111827; font-weight: 800; }
+        .header { border-bottom: 3px solid #ea580c; }
+      `;
+    }
+    // elegant
     return base + `
-      body { font-family: 'Inter', system-ui, sans-serif; }
-      .section-title { color: #6366f1; border-bottom: 2px solid #e0e7ff; }
-      .header h1 { color: #111827; font-weight: 800; }
+      body { font-family: 'Georgia', serif; background: #fff; color: #1a1a1a; }
+      .header { text-align: left; border-bottom: none; border-left: 4px solid #ea580c; padding-left: 16px; margin-bottom: 30px; }
+      .header h1 { font-size: 26px; font-weight: normal; letter-spacing: 0; color: #1a1a1a; }
+      .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 3px; color: #ea580c; border-bottom: none; margin-bottom: 12px; }
+      li { font-size: 13.5px; margin-bottom: 5px; }
     `;
   }
 
@@ -129,15 +141,19 @@ export function ExportModal({ isOpen, onClose, type, content, metadata }: Export
         ${sections.skills && sections.skills.length > 0 ? `<h2 class="section-title">Skills</h2><div class="skills-container" style="margin-bottom:20px;">${escapeHtml(sections.skills.join(' • '))}</div>` : ''}
       `;
     } else {
-      // Cover Letter
       const cl = content as string;
+      // Split into paragraphs properly for a readable letter
+      const paragraphs = cl.split(/\n\n+/).filter(p => p.trim());
+      const clParagraphsHtml = paragraphs.map(p =>
+        `<p style="margin:0 0 14px; font-size:13.5px; line-height:1.7;">${escapeHtml(p.replace(/\n/g, ' ').trim())}</p>`
+      ).join('');
       internalHtml = `
         <div class="cl-header">
-          <h1 style="font-size:24px; font-weight:bold; margin-bottom:5px;">${escapeHtml(metadata?.userName || 'Applicant')}</h1>
-          ${metadata?.jobTitle ? `<div style="color:#6b7280; font-size:14px;">Application for ${escapeHtml(metadata.jobTitle)} ${metadata.company ? `at ${escapeHtml(metadata.company)}` : ''}</div>` : ''}
+          <h1 style="font-size:24px; font-weight:bold; margin-bottom:4px;">${escapeHtml(metadata?.userName || 'Applicant')}</h1>
+          ${metadata?.jobTitle ? `<div style="color:#6b7280; font-size:13px;">Application for ${escapeHtml(metadata.jobTitle)}${metadata.company ? ` at ${escapeHtml(metadata.company)}` : ''}</div>` : ''}
         </div>
         <div class="cl-date">${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
-        <div class="cl-body">${escapeHtml(cl)}</div>
+        <div class="cl-body">${clParagraphsHtml}</div>
       `;
     }
 

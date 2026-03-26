@@ -13,6 +13,7 @@ import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
 import { Interview } from './pages/Interview';
 import { Writing } from './pages/Writing';
+import { CoverLetters } from './pages/CoverLetters';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string;
 
@@ -36,6 +37,7 @@ function App() {
             <Route path="/editor" element={<ProtectedRoute><Editor /></ProtectedRoute>} />
             <Route path="/interview" element={<ProtectedRoute><Interview /></ProtectedRoute>} />
             <Route path="/writing" element={<ProtectedRoute><Writing /></ProtectedRoute>} />
+            <Route path="/cover-letters" element={<ProtectedRoute><CoverLetters /></ProtectedRoute>} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />

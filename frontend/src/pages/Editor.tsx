@@ -768,9 +768,9 @@ export function Editor() {
       )}
 
       {/* Main Split View */}
-      <main className="flex-1 flex overflow-hidden">
+      <main className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
         {/* LEFT: Original Resume */}
-        <div className="flex-1 border-r border-gray-200 bg-gray-100/50 overflow-y-auto relative flex flex-col">
+        <div className="flex-1 lg:flex-[1_1_50%] border-b lg:border-b-0 lg:border-r border-gray-200 bg-gray-100/50 lg:overflow-y-auto relative flex flex-col min-h-[500px] lg:min-h-0">
           <div className="absolute inset-0 bg-grid-pattern opacity-20 pointer-events-none" />
           <div className={`p-4 sm:p-6 relative z-10 flex flex-col ${pdfUrl ? 'h-full w-full' : 'justify-center min-h-full items-start'}`}>
             {loadingResume ? (
@@ -809,7 +809,7 @@ export function Editor() {
         </div>
 
         {/* RIGHT: Enhanced Resume */}
-        <div className="flex-1 bg-white overflow-y-auto relative">
+        <div className="flex-1 lg:flex-[1_1_50%] bg-white lg:overflow-y-auto relative min-h-[500px] lg:min-h-0">
           <div className="p-4 sm:p-6 flex justify-center min-h-full items-start">
             {enhancing ? (
               <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-center">

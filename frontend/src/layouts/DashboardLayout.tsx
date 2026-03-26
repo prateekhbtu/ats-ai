@@ -10,6 +10,7 @@ import {
   MessageSquare,
   PenTool,
   Menu,
+  Mail,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
@@ -18,6 +19,7 @@ import { useAuth } from '../contexts/AuthContext';
 const navItems = [
   { name: 'My Resumes', path: '/dashboard', icon: FileText },
   { name: 'Enhance Resume', path: '/editor', icon: Sparkles },
+  { name: 'Cover Letters', path: '/cover-letters', icon: Mail },
   { name: 'Target Jobs', path: '/jobs', icon: Briefcase },
   { name: 'Version History', path: '/versions', icon: History },
   { name: 'Interview Prep', path: '/interview', icon: MessageSquare },

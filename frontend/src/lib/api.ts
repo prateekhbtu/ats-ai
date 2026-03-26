@@ -399,7 +399,7 @@ export const coverLetterApi = {
   generate: (
     resume_id: string,
     jd_id: string,
-    tone: 'formal' | 'conversational' | 'assertive',
+    tone: 'formal' | 'conversational' | 'assertive' | 'enthusiastic',
     template?: string,
   ) =>
     request<{ id: string; tone: string; content: string }>(
