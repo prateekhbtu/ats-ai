@@ -7,7 +7,7 @@ import type { Env, AppVariables } from '../types/index.js';
 import { processJobDescription, getJdById } from '../services/jd-parser.service.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { llmRateLimiter } from '../middleware/rate-limiter.middleware.js';
-import { ValidationError } from '../middleware/error-handler.middleware.js';
+import { ValidationError, NotFoundError } from '../middleware/error-handler.middleware.js';
 
 const jdRoutes = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -66,6 +66,33 @@ jdRoutes.get('/:id', async (c) => {
 
   const jd = await getJdById(jdId, userId, c.env.DATABASE_URL);
   return c.json(jd, 200);
+});
+
+// GET /api/jd/list
+jdRoutes.get('/list', async (c) => {
+  const userId = c.get('userId');
+  const { listUserJds } = await import('../services/jd-parser.service.js');
+  const jds = await listUserJds(userId, c.env.DATABASE_URL);
+  return c.json({ jds }, 200);
+});
+
+// DELETE /api/jd/:id
+jdRoutes.delete('/:id', async (c) => {
+  const jdId = c.req.param('id');
+  const userId = c.get('userId');
+
+  if (!jdId || !isValidUUID(jdId)) {
+    throw new ValidationError('Valid jd_id is required');
+  }
+
+  const { deleteJd } = await import('../services/jd-parser.service.js');
+  const success = await deleteJd(jdId, userId, c.env.DATABASE_URL);
+  
+  if (!success) {
+    throw new NotFoundError('Job description not found or not owned by user');
+  }
+  
+  return c.json({ success: true }, 200);
 });
 
 function isValidUUID(str: string): boolean {

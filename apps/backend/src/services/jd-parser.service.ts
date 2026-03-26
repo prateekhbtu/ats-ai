@@ -189,3 +189,35 @@ export async function getJdById(
     source_url: jd.source_url,
   };
 }
+
+/**
+ * List all JDs for the current user.
+ */
+export async function listUserJds(userId: string, databaseUrl: string) {
+  const { query } = await import('./db.service.js');
+  const items = await query<JdRow>(
+    databaseUrl,
+    `SELECT id, source_url, extracted_data, created_at, updated_at FROM job_descriptions WHERE user_id = $1 ORDER BY created_at DESC`,
+    [userId]
+  );
+  return items.map(jd => ({
+    id: jd.id,
+    source_url: jd.source_url,
+    extracted_data: (typeof jd.extracted_data === 'string' ? JSON.parse(jd.extracted_data) : jd.extracted_data) as JdExtractedData,
+    created_at: jd.created_at,
+    updated_at: jd.updated_at,
+  }));
+}
+
+/**
+ * Delete a user's JD.
+ */
+export async function deleteJd(jdId: string, userId: string, databaseUrl: string): Promise<boolean> {
+  const { execute } = await import('./db.service.js');
+  const result = await execute(
+    databaseUrl,
+    `DELETE FROM job_descriptions WHERE id = $1 AND user_id = $2`,
+    [jdId, userId]
+  );
+  return result > 0;
+}

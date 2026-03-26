@@ -16,10 +16,10 @@ import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 
 const navItems = [
-  { name: 'Optimizations', path: '/dashboard', icon: Sparkles },
-  { name: 'Base Resumes', path: '/resumes', icon: FileText },
+  { name: 'My Resumes', path: '/dashboard', icon: FileText },
+  { name: 'Enhance Resume', path: '/editor', icon: Sparkles },
   { name: 'Target Jobs', path: '/jobs', icon: Briefcase },
-  { name: 'Versions History', path: '/versions', icon: History },
+  { name: 'Version History', path: '/versions', icon: History },
   { name: 'Interview Prep', path: '/interview', icon: MessageSquare },
   { name: 'Writing Analysis', path: '/writing', icon: PenTool },
   { name: 'User Profile', path: '/settings', icon: Settings },

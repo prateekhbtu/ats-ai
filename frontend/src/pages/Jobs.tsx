@@ -13,7 +13,15 @@ export function Jobs() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Load local first for speed
     setJobs(jdStore.list());
+    // Fetch latest from backend to sync
+    jdApi.list()
+      .then(res => {
+        jdStore.setAll(res.jds);
+        setJobs(res.jds);
+      })
+      .catch(err => console.error('Failed to sync JDs:', err));
   }, []);
 
   async function handleSave() {
@@ -48,9 +56,16 @@ export function Jobs() {
     }
   }
 
-  function handleRemove(id: string) {
+  async function handleRemove(id: string) {
+    // Optimistic delete
     jdStore.remove(id);
     setJobs(jdStore.list());
+    try {
+      await jdApi.delete(id);
+    } catch (err) {
+      console.error('Failed to delete JD:', err);
+      // Optional: rollback on failure
+    }
   }
 
   return (

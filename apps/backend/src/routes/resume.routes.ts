@@ -1,12 +1,15 @@
 /**
  * Resume Routes
+ * GET  /api/resume/list
  * POST /api/resume/upload
+ * POST /api/resume/score
  * GET  /api/resume/:id
+ * DELETE /api/resume/:id
  */
 
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../types/index.js';
-import { uploadAndParseResume, getResumeById, deleteResume } from '../services/resume-parser.service.js';
+import { uploadAndParseResume, getResumeById, deleteResume, listResumes, scoreResumeStandalone } from '../services/resume-parser.service.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { llmRateLimiter } from '../middleware/rate-limiter.middleware.js';
 import { ValidationError } from '../middleware/error-handler.middleware.js';
@@ -15,6 +18,13 @@ const resumeRoutes = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
 // All resume routes require authentication
 resumeRoutes.use('/*', authMiddleware);
+
+// GET /api/resume/list — List all resumes for the authenticated user
+resumeRoutes.get('/list', async (c) => {
+  const userId = c.get('userId');
+  const resumes = await listResumes(userId, c.env.DATABASE_URL);
+  return c.json({ resumes }, 200);
+});
 
 // POST /api/resume/upload
 resumeRoutes.post('/upload', llmRateLimiter(), async (c) => {
@@ -57,6 +67,20 @@ resumeRoutes.post('/upload', llmRateLimiter(), async (c) => {
   const result = await uploadAndParseResume(fileBuffer, fileName, userId, c.env);
 
   return c.json(result, 201);
+});
+
+// POST /api/resume/score — ATS score a resume standalone (no JD required)
+resumeRoutes.post('/score', async (c) => {
+  const body = await c.req.json<{ resume_id?: string }>().catch(() => null);
+
+  if (!body || !body.resume_id || !isValidUUID(body.resume_id)) {
+    throw new ValidationError('Valid resume_id is required');
+  }
+
+  const userId = c.get('userId');
+  const result = await scoreResumeStandalone(body.resume_id, userId, c.env.DATABASE_URL);
+
+  return c.json(result, 200);
 });
 
 // GET /api/resume/:id

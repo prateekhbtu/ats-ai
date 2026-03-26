@@ -5,7 +5,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Landing } from './pages/Landing';
 import { Dashboard } from './pages/Dashboard';
 import { Editor } from './pages/Editor';
-import { Resumes } from './pages/Resumes';
+import { Upload } from './pages/Upload';
 import { Jobs } from './pages/Jobs';
 import { Settings } from './pages/Settings';
 import { Versions } from './pages/Versions';
@@ -28,8 +28,8 @@ function App() {
             <Route path="/signup" element={<Signup />} />
 
             {/* Protected */}
+            <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/resumes" element={<ProtectedRoute><Resumes /></ProtectedRoute>} />
             <Route path="/jobs" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
             <Route path="/versions" element={<ProtectedRoute><Versions /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />

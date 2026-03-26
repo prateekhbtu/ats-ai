@@ -3,12 +3,14 @@
  * LLM-based section parsing.
  */
 
-import { queryOne, execute } from './db.service.js';
+import { query, queryOne, execute } from './db.service.js';
 import { callLlm, getLlmConfig } from './llm.service.js';
 import { buildResumeParsePrompt } from '../utils/prompt-builder.js';
 import { validateJsonResponse, validateResumeSections } from '../utils/response-validator.js';
 import { checkForInjection } from '../utils/injection-guard.js';
 import { resumeSectionsSchema } from '../utils/vertex-response-schemas.js';
+import { computeReadabilityScore } from '../utils/readability-score.js';
+import { validateSections } from '../utils/section-validator.js';
 import type { ResumeRow, ResumeSections, Env } from '../types/index.js';
 import { ValidationError, NotFoundError, LlmError } from '../middleware/error-handler.middleware.js';
 
@@ -399,4 +401,109 @@ export async function deleteResume(
     `DELETE FROM resumes WHERE id = $1 AND user_id = $2`,
     [resumeId, userId]
   );
+}
+
+/**
+ * List all resumes for a given user.
+ */
+export async function listResumes(
+  userId: string,
+  databaseUrl: string
+): Promise<{ id: string; original_filename: string; created_at: string; updated_at: string }[]> {
+  const rows = await query<ResumeRow>(
+    databaseUrl,
+    `SELECT id, original_filename, created_at, updated_at FROM resumes WHERE user_id = $1 ORDER BY created_at DESC`,
+    [userId]
+  );
+
+  return rows.map((r) => ({
+    id: r.id,
+    original_filename: r.original_filename,
+    created_at: r.created_at,
+    updated_at: r.updated_at ?? r.created_at,
+  }));
+}
+
+/**
+ * Standalone ATS score for a resume (no JD required).
+ * Uses section completeness, readability, and experience depth.
+ */
+export async function scoreResumeStandalone(
+  resumeId: string,
+  userId: string,
+  databaseUrl: string
+): Promise<{
+  resume_id: string;
+  ats_score: number;
+  breakdown: { section_completeness: number; readability: number; experience_depth: number };
+  feedback: string[];
+}> {
+  const resume = await getResumeById(resumeId, userId, databaseUrl);
+  const sections = resume.sections;
+
+  // Section Completeness
+  const sectionResult = validateSections(sections);
+  const sectionScore = sectionResult.score;
+
+  // Readability
+  const readabilityResult = computeReadabilityScore(resume.raw_text);
+  const readabilityScore = readabilityResult.score;
+
+  // Experience Depth (simplified without JD)
+  const experience = sections.experience || [];
+  let experienceScore = 10;
+  if (experience.length > 0) {
+    const totalBullets = experience.reduce((sum, e) => sum + (e.bullets?.length || 0), 0);
+    const avgBullets = totalBullets / experience.length;
+    let score = 0;
+    if (experience.length >= 2 && experience.length <= 5) score += 30;
+    else if (experience.length === 1) score += 20;
+    else if (experience.length > 5) score += 25;
+    if (avgBullets >= 3 && avgBullets <= 6) score += 35;
+    else if (avgBullets >= 1 && avgBullets < 3) score += 20;
+    else if (avgBullets > 6) score += 25;
+    else score += 5;
+    let quantified = 0;
+    for (const exp of experience) {
+      for (const bullet of (exp.bullets || [])) {
+        if (/\d+%|\$[\d,]+|\d+x|\d+\+|\d+\s*(users|customers|clients|projects|teams|people)/.test(bullet)) {
+          quantified++;
+        }
+      }
+    }
+    const quantifiedRatio = totalBullets > 0 ? quantified / totalBullets : 0;
+    if (quantifiedRatio >= 0.3) score += 35;
+    else if (quantifiedRatio >= 0.15) score += 25;
+    else if (quantifiedRatio > 0) score += 15;
+    else score += 5;
+    experienceScore = Math.min(100, Math.max(0, score));
+  }
+
+  const atsScore = Math.round(
+    0.40 * sectionScore +
+    0.30 * readabilityScore +
+    0.30 * experienceScore
+  );
+
+  // Generate feedback
+  const feedback: string[] = [];
+  if (!sections.summary) feedback.push('Add a professional summary to improve ATS readability.');
+  if ((sections.skills || []).length < 5) feedback.push('Expand your skills section — aim for at least 5-8 relevant skills.');
+  if (experience.length === 0) feedback.push('Add work experience entries to significantly improve your score.');
+  if (sectionScore < 60) feedback.push('Your resume is missing key sections (education, projects, certifications).');
+  if (readabilityScore < 60) feedback.push('Improve readability: use action verbs, shorter sentences, and active voice.');
+  if (experienceScore >= 70) feedback.push('Great experience section with good depth and detail.');
+  if (sectionScore >= 80) feedback.push('Excellent section coverage — all key resume parts are present.');
+  if (readabilityScore >= 70) feedback.push('Good writing quality with clear, professional language.');
+
+  return {
+    resume_id: resumeId,
+    ats_score: Math.min(100, Math.max(0, atsScore)),
+    breakdown: {
+      section_completeness: sectionScore,
+      readability: readabilityScore,
+      experience_depth: experienceScore,
+    },
+    feedback,
+  };
 }

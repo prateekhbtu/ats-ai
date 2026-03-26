@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import type { JdRecord } from './storage';
 
 // ─── API Base ───────────────────────────────────────────────────────────────
 const API_BASE =
@@ -164,6 +165,17 @@ export interface ScoreBreakdown {
   experience_depth: number;
 }
 
+export interface StandaloneScoreResult {
+  resume_id: string;
+  ats_score: number;
+  breakdown: {
+    section_completeness: number;
+    readability: number;
+    experience_depth: number;
+  };
+  feedback: string[];
+}
+
 export interface UniScoreResult {
   id: string;
   analysis_id: string;
@@ -304,6 +316,8 @@ export const profileApi = {
 // ─── Resume ───────────────────────────────────────────────────────────────────
 
 export const resumeApi = {
+  list: () => request<{ resumes: { id: string; original_filename: string; created_at: string; updated_at: string }[] }>('/api/resume/list'),
+
   upload: (file: File) => {
     const form = new FormData();
     form.append('file', file);
@@ -314,6 +328,12 @@ export const resumeApi = {
   },
 
   get: (id: string) => request<{ resume: ResumeDetail }>(`/api/resume/${id}`),
+
+  score: (resume_id: string) =>
+    request<StandaloneScoreResult>('/api/resume/score', {
+      method: 'POST',
+      body: JSON.stringify({ resume_id }),
+    }),
 
   delete: (id: string) =>
     request<{ message: string }>(`/api/resume/${id}`, { method: 'DELETE' }),
@@ -326,6 +346,12 @@ export const jdApi = {
     request<{ id: string; extracted_data: JdExtractedData }>('/api/jd/process', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+  list: () =>
+    request<{ jds: JdRecord[] }>('/api/jd/list'),
+  delete: (id: string) =>
+    request<{ success: boolean }>(`/api/jd/${id}`, {
+      method: 'DELETE',
     }),
 };
 
@@ -415,5 +441,11 @@ export const versionApi = {
     request<{ message: string }>('/api/version/restore', {
       method: 'POST',
       body: JSON.stringify({ version_id }),
+    }),
+
+  save: (enhanced_resume_id: string, sections: ResumeSections) =>
+    request<EnhancedResumeResult>('/api/enhancer/manual-edit', {
+      method: 'POST',
+      body: JSON.stringify({ enhanced_resume_id, sections }),
     }),
 };

@@ -1,10 +1,11 @@
-// Simple localStorage-backed store for resource metadata
-// since the backend doesn't expose list endpoints in the OpenAPI spec.
+// User-scoped localStorage store for resource metadata.
+// Keys are namespaced by user ID to ensure data isolation between users.
 
 export interface ResumeRecord {
   id: string;
   original_filename: string;
   created_at: string;
+  ats_score?: number;
 }
 
 export interface JdRecord {
@@ -36,11 +37,26 @@ export interface OptimizationRecord {
   created_at: string;
 }
 
-const KEYS = {
-  resumes: 'atsai_resumes',
-  jds: 'atsai_jds',
-  optimizations: 'atsai_optimizations',
-};
+// ─── User-scoped key generation ──────────────────────────────────────────────
+
+function getUserId(): string {
+  // Try to get user info from auth token payload for isolation
+  try {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.sub || payload.id || 'anonymous';
+    }
+  } catch {
+    // fallback
+  }
+  return 'anonymous';
+}
+
+function scopedKey(base: string): string {
+  const userId = getUserId();
+  return `atsai_${userId}_${base}`;
+}
 
 function load<T>(key: string): T[] {
   try {
@@ -57,16 +73,23 @@ function save<T>(key: string, data: T[]): void {
 // ─── Resumes ─────────────────────────────────────────────────────────────────
 
 export const resumeStore = {
-  list: (): ResumeRecord[] => load<ResumeRecord>(KEYS.resumes),
+  list: (): ResumeRecord[] => load<ResumeRecord>(scopedKey('resumes')),
 
   add: (record: ResumeRecord) => {
     const items = resumeStore.list();
-    save(KEYS.resumes, [record, ...items]);
+    save(scopedKey('resumes'), [record, ...items]);
+  },
+
+  update: (id: string, updates: Partial<ResumeRecord>) => {
+    const items = resumeStore.list().map((r) =>
+      r.id === id ? { ...r, ...updates } : r,
+    );
+    save(scopedKey('resumes'), items);
   },
 
   remove: (id: string) => {
     save(
-      KEYS.resumes,
+      scopedKey('resumes'),
       resumeStore.list().filter((r) => r.id !== id),
     );
   },
@@ -75,34 +98,38 @@ export const resumeStore = {
 // ─── Job Descriptions ─────────────────────────────────────────────────────────
 
 export const jdStore = {
-  list: (): JdRecord[] => load<JdRecord>(KEYS.jds),
+  list: (): JdRecord[] => load<JdRecord>(scopedKey('jds')),
 
   add: (record: JdRecord) => {
     const items = jdStore.list();
-    save(KEYS.jds, [record, ...items]);
+    save(scopedKey('jds'), [record, ...items]);
   },
 
   remove: (id: string) => {
     save(
-      KEYS.jds,
+      scopedKey('jds'),
       jdStore.list().filter((j) => j.id !== id),
     );
+  },
+
+  setAll: (records: JdRecord[]) => {
+    save(scopedKey('jds'), records);
   },
 };
 
 // ─── Optimizations ────────────────────────────────────────────────────────────
 
 export const optimizationStore = {
-  list: (): OptimizationRecord[] => load<OptimizationRecord>(KEYS.optimizations),
+  list: (): OptimizationRecord[] => load<OptimizationRecord>(scopedKey('optimizations')),
 
   add: (record: OptimizationRecord) => {
     const items = optimizationStore.list();
-    save(KEYS.optimizations, [record, ...items]);
+    save(scopedKey('optimizations'), [record, ...items]);
   },
 
   remove: (id: string) => {
     save(
-      KEYS.optimizations,
+      scopedKey('optimizations'),
       optimizationStore.list().filter((o) => o.id !== id),
     );
   },
