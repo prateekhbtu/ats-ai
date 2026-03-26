@@ -12,6 +12,7 @@ import {
 } from '../lib/api';
 import { resumeStore, jdStore, type ResumeRecord, type JdRecord } from '../lib/storage';
 import { getResumeFile } from '../lib/idb';
+import { ExportModal } from '../components/ExportModal';
 
 // ─── Resume Preview Renderer ────────────────────────────────────────────────
 
@@ -399,7 +400,7 @@ function SectionEditor({
           onClick={() => setTab('ai')}
           className={`flex-1 py-3.5 text-xs font-extrabold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 ${
             tab === 'ai'
-              ? 'text-[#A855F7] bg-[#FAF5FF] border-b-2 border-[#A855F7]'
+              ? 'text-orange-500 bg-orange-50 border-b-2 border-orange-500'
               : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50 border-b border-gray-200'
           }`}
         >
@@ -410,7 +411,7 @@ function SectionEditor({
       <div className="p-6">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-[17px] font-extrabold text-[#111827] flex items-center gap-2.5">
-            {tab === 'manual' ? <Edit3 size={18} className="text-gray-400" /> : <Wand2 size={18} className="text-[#A855F7]" />}
+            {tab === 'manual' ? <Edit3 size={18} className="text-gray-400" /> : <Wand2 size={18} className="text-orange-500" />}
             {tab === 'manual' ? 'Edit' : 'AI Optimize'}: <span className="capitalize">{sectionKey}</span>{sectionIndex !== undefined ? ` #${sectionIndex + 1}` : ''}
           </h3>
           <button onClick={onCancel} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
@@ -438,8 +439,8 @@ function SectionEditor({
           </>
         ) : (
           <>
-            <div className="bg-[#FAF5FF] border border-[#E9D5FF] rounded-[14px] p-5 mb-4">
-              <p className="text-[13px] text-[#A855F7] mb-4 font-medium">
+            <div className="bg-orange-50/50 border border-orange-200 rounded-[14px] p-5 mb-4">
+              <p className="text-[13px] text-orange-600 mb-4 font-medium">
                 Describe how you want AI to modify <span className="font-extrabold capitalize">{sectionKey}</span>. Be specific for best results.
               </p>
               <div className="flex gap-2 mb-4">
@@ -447,14 +448,14 @@ function SectionEditor({
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
                   placeholder={`e.g., "Make the bullet points more impactful with quantified results" or "Add relevant keywords for a data science role"`}
-                  className="w-full bg-white border border-[#E9D5FF] rounded-xl px-4 py-3.5 text-[14px] focus:outline-none focus:ring-2 focus:ring-[#A855F7]/20 text-gray-700 placeholder:text-gray-400 resize-none min-h-[90px] shadow-sm leading-relaxed"
+                  className="w-full bg-white border border-orange-200 rounded-xl px-4 py-3.5 text-[14px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-gray-700 placeholder:text-gray-400 resize-none min-h-[90px] shadow-sm leading-relaxed"
                 />
               </div>
               <div className="flex gap-3 mt-1">
                 <button
                   onClick={handleAiOptimize}
                   disabled={aiLoading || !aiPrompt.trim() || !enhancedResumeId}
-                  className="flex-1 bg-[#c296f8] text-white py-3.5 rounded-xl text-[14px] font-semibold hover:bg-[#b084eb] transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                  className="flex-1 bg-orange-500 text-white py-3.5 rounded-xl text-[14px] font-semibold hover:bg-orange-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   {aiLoading ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
                   Optimize This Section
@@ -462,7 +463,7 @@ function SectionEditor({
                 <button
                   onClick={handleAiRefine}
                   disabled={aiLoading || !aiPrompt.trim() || !enhancedResumeId}
-                  className="flex-1 bg-white border border-gray-200 text-[#c296f8] py-3.5 rounded-xl text-[14px] font-semibold hover:bg-[#FAF5FF] transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                  className="flex-1 bg-white border border-gray-200 text-orange-600 py-3.5 rounded-xl text-[14px] font-semibold hover:bg-orange-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   {aiLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                   Refine Entire Resume
@@ -487,6 +488,7 @@ function SectionEditor({
 export function Editor() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const preselectedResumeId = searchParams.get('resume') || '';
 
   // Resource lists
@@ -655,67 +657,14 @@ export function Editor() {
     setTimeout(() => setSavedMsg(null), 3000);
   }
 
-  function escapeHtml(str: string): string {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  }
+
 
   function handleExportPdf() {
-    const sections = enhanceResult?.enhanced_sections;
-    if (!sections) {
+    if (!enhanceResult?.enhanced_sections) {
       setError('Nothing to export yet. Enhance a resume first.');
       return;
     }
-    const lineItems = (items: string[]) => items.map(i => `<li>${escapeHtml(i)}</li>`).join('');
-    const experience = (sections.experience || []).map((e) => `
-      <div class="item">
-        <div class="row"><h3>${escapeHtml(e.title)}</h3><span>${escapeHtml(e.duration || '')}</span></div>
-        <p class="muted">${escapeHtml(e.company || '')}</p>
-        <ul>${lineItems(e.bullets || [])}</ul>
-      </div>
-    `).join('');
-    const education = (sections.education || []).map((e) => `
-      <div class="item">
-        <div class="row"><h3>${escapeHtml(e.degree)}</h3><span>${escapeHtml(e.year || '')}</span></div>
-        <p class="muted">${escapeHtml(e.institution || '')}</p>
-        ${e.details ? `<p>${escapeHtml(e.details)}</p>` : ''}
-      </div>
-    `).join('');
-    const projects = (sections.projects || []).map((p) => `
-      <div class="item">
-        <h3>${escapeHtml(p.name)}</h3>
-        <p>${escapeHtml(p.description || '')}</p>
-        ${p.technologies?.length ? `<p class="muted">Technologies: ${escapeHtml(p.technologies.join(', '))}</p>` : ''}
-      </div>
-    `).join('');
-
-    const html = `<!doctype html><html><head><meta charset="utf-8" />
-      <title>Enhanced Resume</title>
-      <style>
-      body{font-family:Arial,Helvetica,sans-serif;margin:36px;color:#111;line-height:1.4}
-      h2{font-size:12px;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #ddd;padding-bottom:4px;margin:18px 0 10px}
-      h3{font-size:14px;margin:0;font-weight:700}
-      .row{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
-      .muted{font-size:12px;color:#666;margin:2px 0 6px}
-      .item{margin-bottom:10px}
-      ul{margin:6px 0 0 16px;padding:0}
-      li{margin:3px 0}
-      </style></head><body>
-      ${sections.summary ? `<h2>Summary</h2><p>${escapeHtml(sections.summary)}</p>` : ''}
-      ${(sections.experience || []).length ? `<h2>Experience</h2>${experience}` : ''}
-      ${(sections.skills || []).length ? `<h2>Skills</h2><p>${escapeHtml((sections.skills || []).join(', '))}</p>` : ''}
-      ${(sections.education || []).length ? `<h2>Education</h2>${education}` : ''}
-      ${(sections.projects || []).length ? `<h2>Projects</h2>${projects}` : ''}
-      ${(sections.certifications || []).length ? `<h2>Certifications</h2><ul>${lineItems(sections.certifications || [])}</ul>` : ''}
-      ${(sections.other || []).length ? `<h2>Other</h2><ul>${lineItems(sections.other || [])}</ul>` : ''}
-      </body></html>`;
-
-    const win = window.open('', '_blank');
-    if (!win) { setError('Popup blocked.'); return; }
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => win.print(), 250);
+    setExportModalOpen(true);
   }
 
   return (
@@ -984,6 +933,13 @@ export function Editor() {
           </div>
         </div>
       </main>
+      <ExportModal 
+        isOpen={exportModalOpen} 
+        onClose={() => setExportModalOpen(false)} 
+        type="resume" 
+        content={enhanceResult?.enhanced_sections!} 
+        metadata={{ userName: originalResume?.original_filename?.replace(/\.[^/.]+$/, "") || 'Your Name' }} 
+      />
     </div>
   );
 }
