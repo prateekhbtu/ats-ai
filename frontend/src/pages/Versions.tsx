@@ -229,6 +229,11 @@ export function Versions() {
           onClose={() => setPreviewContent(null)}
           type={previewContent.type}
           content={previewContent.content}
+          metadata={{ 
+            userName: resumes.find(r => r.id === selectedResumeId)?.candidate_name || 
+                      resumes.find(r => r.id === selectedResumeId)?.original_filename?.replace(/\.[^/.]+$/, "") || 
+                      'Your Name' 
+          }}
         />
       )}
     </DashboardLayout>

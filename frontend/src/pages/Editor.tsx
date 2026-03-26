@@ -930,7 +930,7 @@ export function Editor() {
         onClose={() => setExportModalOpen(false)} 
         type="resume" 
         content={enhanceResult?.enhanced_sections!} 
-        metadata={{ userName: originalResume?.original_filename?.replace(/\.[^/.]+$/, "") || 'Your Name' }} 
+        metadata={{ userName: originalResume?.candidate_name || originalResume?.original_filename?.replace(/\.[^/.]+$/, "") || 'Your Name' }} 
       />
     </div>
   );

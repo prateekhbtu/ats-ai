@@ -4,6 +4,7 @@
 export interface ResumeRecord {
   id: string;
   original_filename: string;
+  candidate_name?: string;
   file_url?: string | null;    // Supabase Storage public URL (set after upload)
   created_at: string;
   ats_score?: number;

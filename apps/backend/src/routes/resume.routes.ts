@@ -97,6 +97,34 @@ resumeRoutes.get('/:id', async (c) => {
   return c.json(resume, 200);
 });
 
+// PUT /api/resume/:id/name
+resumeRoutes.put('/:id/name', async (c) => {
+  const resumeId = c.req.param('id');
+  const userId = c.get('userId');
+
+  if (!resumeId || !isValidUUID(resumeId)) {
+    throw new ValidationError('Valid resume ID is required');
+  }
+
+  const body = await c.req.json().catch(() => null);
+  if (!body || !body.candidate_name) {
+    throw new ValidationError('candidate_name is required');
+  }
+
+  const { queryOne } = await import('../services/db.service.js');
+  const { NotFoundError } = await import('../middleware/error-handler.middleware.js');
+  
+  const result = await queryOne(
+    c.env.DATABASE_URL,
+    `UPDATE resumes SET candidate_name = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3 RETURNING id`,
+    [body.candidate_name, resumeId, userId]
+  );
+  
+  if (!result) throw new NotFoundError('Resume');
+  
+  return c.json({ success: true, candidate_name: body.candidate_name }, 200);
+});
+
 // DELETE /api/resume/:id
 resumeRoutes.delete('/:id', async (c) => {
   const resumeId = c.req.param('id');

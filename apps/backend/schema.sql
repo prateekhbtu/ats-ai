@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS resumes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   original_filename VARCHAR(500) NOT NULL,
+  candidate_name VARCHAR(500),
   file_url TEXT,
   raw_text TEXT NOT NULL,
   sections JSONB NOT NULL,

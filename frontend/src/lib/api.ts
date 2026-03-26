@@ -140,6 +140,7 @@ export interface ResumeSections {
 export interface ResumeDetail {
   id: string;
   original_filename: string;
+  candidate_name?: string;
   file_url: string | null;
   raw_text: string;
   sections: ResumeSections;
@@ -317,7 +318,13 @@ export const profileApi = {
 // ─── Resume ───────────────────────────────────────────────────────────────────
 
 export const resumeApi = {
-  list: () => request<{ resumes: { id: string; original_filename: string; file_url: string | null; created_at: string; updated_at: string }[] }>('/api/resume/list'),
+  list: () => request<{ resumes: { id: string; original_filename: string; candidate_name?: string; file_url: string | null; created_at: string; updated_at: string }[] }>('/api/resume/list'),
+
+  updateName: (id: string, candidate_name: string) =>
+    request<{ success: boolean; candidate_name: string }>(`/api/resume/${id}/name`, {
+      method: 'PUT',
+      body: JSON.stringify({ candidate_name }),
+    }),
 
   upload: (file: File) => {
     const form = new FormData();

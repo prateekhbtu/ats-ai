@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, FileText, MoreVertical, Calendar, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import { Upload, FileText, MoreVertical, Calendar, Trash2, Loader2, AlertCircle, Edit3, X, Check } from 'lucide-react';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { resumeApi } from '../lib/api';
 import { resumeStore, type ResumeRecord } from '../lib/storage';
@@ -9,6 +9,8 @@ export function Resumes() {
   const [resumes, setResumes] = useState<ResumeRecord[]>([]);
   const [uploading, setUploading] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const [savingName, setSavingName] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -65,6 +67,22 @@ export function Resumes() {
       setError(err instanceof Error ? err.message : 'Failed to delete resume.');
     } finally {
       setRemoving(null);
+    }
+  }
+
+  async function handleRenameSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!renaming) return;
+    setSavingName(true);
+    try {
+      await resumeApi.updateName(renaming.id, renaming.name);
+      resumeStore.update(renaming.id, { candidate_name: renaming.name });
+      setResumes(resumeStore.list());
+      setRenaming(null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to rename resume.');
+    } finally {
+      setSavingName(false);
     }
   }
 
@@ -156,16 +174,51 @@ export function Resumes() {
                     <FileText size={18} />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="font-medium text-gray-900 truncate">{resume.original_filename}</h3>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
-                      <Calendar size={11} />
-                      <span>{new Date(resume.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                      <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-medium">Ready</span>
-                    </div>
+                    {renaming?.id === resume.id ? (
+                      <form onSubmit={handleRenameSubmit} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-1">
+                        <input
+                          autoFocus
+                          type="text"
+                          value={renaming.name}
+                          onChange={(e) => setRenaming({ ...renaming, name: e.target.value })}
+                          className="px-2 py-1 bg-white border border-gray-300 rounded text-sm focus:outline-none focus:border-orange-500"
+                        />
+                        <div className="flex items-center gap-1">
+                          <button type="submit" disabled={savingName} className="p-1 px-2 text-white bg-green-500 rounded hover:bg-green-600 disabled:opacity-50 inline-flex items-center gap-1">
+                            {savingName ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Save
+                          </button>
+                          <button type="button" onClick={() => setRenaming(null)} className="p-1 px-2 text-gray-600 bg-gray-200 rounded hover:bg-gray-300 inline-flex items-center gap-1">
+                            <X size={12} /> Cancel
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <>
+                        <h3 className="font-medium text-gray-900 truncate">
+                          {resume.candidate_name || resume.original_filename.replace(/\.[^/.]+$/, "")}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
+                          <Calendar size={11} />
+                          <span>{new Date(resume.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                          <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-medium">Ready</span>
+                          <span className="text-gray-300 mx-1">•</span>
+                          <span className="font-mono text-[10px] text-gray-400">{resume.original_filename}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {!renaming && (
+                    <button
+                      onClick={() => setRenaming({ id: resume.id, name: resume.candidate_name || resume.original_filename.replace(/\.[^/.]+$/, "") })}
+                      className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                      title="Rename"
+                    >
+                      <Edit3 size={16} />
+                    </button>
+                  )}
                   <button
                     onClick={() => handleRemove(resume.id)}
                     disabled={removing === resume.id}

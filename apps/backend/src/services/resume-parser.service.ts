@@ -338,11 +338,12 @@ export async function uploadAndParseResume(
   const sections = await parseResumeSections(rawText, getLlmConfig(env), fileBuffer, extension);
 
   // ── 4. Store in Neon ─────────────────────────────────────────────
+  const defaultCandidateName = fileName.replace(/\.[^/.]+$/, "");
   const resume = await queryOne<ResumeRow>(
     env.DATABASE_URL,
-    `INSERT INTO resumes (id, user_id, original_filename, file_url, raw_text, sections)
-     VALUES (gen_random_uuid(), $1, $2, $3, $4, $5) RETURNING *`,
-    [userId, fileName, fileUrl, rawText, JSON.stringify(sections)]
+    `INSERT INTO resumes (id, user_id, original_filename, candidate_name, file_url, raw_text, sections)
+     VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6) RETURNING *`,
+    [userId, fileName, defaultCandidateName, fileUrl, rawText, JSON.stringify(sections)]
   );
 
   if (!resume) {
@@ -364,7 +365,7 @@ export async function getResumeById(
   resumeId: string,
   userId: string,
   databaseUrl: string
-): Promise<{ id: string; raw_text: string; sections: ResumeSections; original_filename: string; file_url: string | null; created_at: string }> {
+): Promise<{ id: string; raw_text: string; sections: ResumeSections; original_filename: string; candidate_name?: string; file_url: string | null; created_at: string }> {
   const resume = await queryOne<ResumeRow>(
     databaseUrl,
     `SELECT * FROM resumes WHERE id = $1 AND user_id = $2`,
@@ -380,6 +381,7 @@ export async function getResumeById(
     raw_text: resume.raw_text,
     sections: (typeof resume.sections === 'string' ? JSON.parse(resume.sections) : resume.sections) as ResumeSections,
     original_filename: resume.original_filename,
+    candidate_name: (resume as any).candidate_name,
     file_url: resume.file_url ?? null,
     created_at: resume.created_at,
   };
@@ -431,16 +433,17 @@ export async function deleteResume(
 export async function listResumes(
   userId: string,
   databaseUrl: string
-): Promise<{ id: string; original_filename: string; file_url: string | null; created_at: string; updated_at: string }[]> {
+): Promise<{ id: string; original_filename: string; candidate_name?: string; file_url: string | null; created_at: string; updated_at: string }[]> {
   const rows = await query<ResumeRow>(
     databaseUrl,
-    `SELECT id, original_filename, file_url, created_at, updated_at FROM resumes WHERE user_id = $1 ORDER BY created_at DESC`,
+    `SELECT id, original_filename, candidate_name, file_url, created_at, updated_at FROM resumes WHERE user_id = $1 ORDER BY created_at DESC`,
     [userId]
   );
 
   return rows.map((r) => ({
     id: r.id,
     original_filename: r.original_filename,
+    candidate_name: (r as any).candidate_name,
     file_url: r.file_url ?? null,
     created_at: r.created_at,
     updated_at: r.updated_at ?? r.created_at,
