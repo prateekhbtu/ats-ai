@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { History, FileText, ArrowRight, RotateCcw, Loader2, AlertCircle, ChevronDown } from 'lucide-react';
+import { History, FileText, ArrowRight, RotateCcw, Loader2, AlertCircle, ChevronDown, Trash2, Eye } from 'lucide-react';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { versionApi, type Version } from '../lib/api';
 import { resumeStore, type ResumeRecord } from '../lib/storage';
+import { ExportModal } from '../components/ExportModal';
 
 export function Versions() {
   const [resumes, setResumes] = useState<ResumeRecord[]>([]);
@@ -11,6 +12,9 @@ export function Versions() {
   const [versions, setVersions] = useState<Version[]>([]);
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [fetchingDetail, setFetchingDetail] = useState<string | null>(null);
+  const [previewContent, setPreviewContent] = useState<{ type: 'resume' | 'cover-letter'; content: any } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -37,10 +41,45 @@ export function Versions() {
     try {
       await versionApi.restore(versionId);
       setSuccessMsg('Version restored successfully.');
+      // Refresh list to show newly appended version
+      const res = await versionApi.getHistory(selectedResumeId);
+      setVersions(res.versions);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to restore version.');
     } finally {
       setRestoring(null);
+    }
+  }
+
+  async function handleDelete(versionId: string) {
+    if (!confirm('Are you sure you want to permanently delete this version?')) return;
+    setDeleting(versionId);
+    try {
+      await versionApi.delete(versionId);
+      setVersions(prev => prev.filter(v => v.id !== versionId));
+      setSuccessMsg('Version deleted successfully.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to delete version.');
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  async function handlePreview(versionId: string, entityType: string) {
+    setFetchingDetail(versionId);
+    try {
+      const detail = await versionApi.getDetail(versionId);
+      if (!detail.content_snapshot) throw new Error('No snapshot data found');
+      
+      const isResume = entityType === 'enhanced_resume';
+      setPreviewContent({
+        type: isResume ? 'resume' : 'cover-letter',
+        content: isResume ? (detail.content_snapshot as any).sections : (detail.content_snapshot as any).content,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load preview.');
+    } finally {
+      setFetchingDetail(null);
     }
   }
 
@@ -152,14 +191,28 @@ export function Versions() {
 
                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       <button
+                        onClick={() => handlePreview(ver.id, ver.entity_type)}
+                        disabled={fetchingDetail === ver.id}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                      >
+                        {fetchingDetail === ver.id ? <Loader2 size={13} className="animate-spin" /> : <Eye size={13} />}
+                        Preview
+                      </button>
+                      <button
                         onClick={() => handleRestore(ver.id)}
                         disabled={restoring === ver.id}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                       >
-                        {restoring === ver.id
-                          ? <Loader2 size={13} className="animate-spin" />
-                          : <RotateCcw size={13} />}
+                        {restoring === ver.id ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
                         Restore
+                      </button>
+                      <button
+                        onClick={() => handleDelete(ver.id)}
+                        disabled={deleting === ver.id}
+                        className="inline-flex items-center justify-center w-8 h-8 text-gray-400 border border-transparent rounded-lg hover:bg-red-50 hover:text-red-500 hover:border-red-100 transition-colors disabled:opacity-50"
+                        title="Delete Version"
+                      >
+                        {deleting === ver.id ? <Loader2 size={14} className="animate-spin text-red-500" /> : <Trash2 size={14} />}
                       </button>
                     </div>
                   </div>
@@ -168,6 +221,15 @@ export function Versions() {
             </div>
           )}
         </div>
+      )}
+
+      {previewContent && (
+        <ExportModal
+          isOpen={true}
+          onClose={() => setPreviewContent(null)}
+          type={previewContent.type}
+          content={previewContent.content}
+        />
       )}
     </DashboardLayout>
   );

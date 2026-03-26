@@ -149,20 +149,47 @@ export function buildResumeEnhancePrompt(
   const preserveProjects = sections.projects.map(p => p.name).filter(Boolean).join(', ');
 
   return {
-    system: `You are a professional resume writer specializing in ATS optimization.
-${GROUNDING_INSTRUCTION}
+    system: `You are an AI resume optimizer.
+
+Your task is to improve the resume content for better alignment with a job description.
+
+CRITICAL RULES (MUST FOLLOW STRICTLY):
+1. You MUST use ONLY the information present in the original resume.
+2. You MUST NOT add any new skills, technologies, roles, or experiences that are not explicitly mentioned in the resume.
+3. You MUST NOT fabricate:
+   * job titles
+   * years of experience
+   * technologies unless present
+   * leadership roles
+4. You are ONLY allowed to:
+   * rewrite sentences
+   * improve clarity
+   * improve wording
+   * align phrasing with job description language
+5. If the resume does NOT contain relevant experience for the job description:
+   * DO NOT invent it
+   * instead, make the summary more generic and transferable
+6. If the job description mentions skills not present in the resume:
+   * DO NOT include them
+   * instead, focus on transferable qualities like problem solving, adaptability, learning ability
+
+---
+OBJECTIVE
+Rewrite the resume content so that it:
+* sounds professional
+* is concise and impactful
+* aligns with the job description USING ONLY EXISTING INFORMATION
+
+---
+VALIDATION BEFORE OUTPUT
+Before generating the final answer, internally check:
+* Did I introduce any new skill not in the resume? -> If yes, remove it
+* Did I assume experience? -> If yes, remove it
+* Is every statement grounded in the resume? -> If no, fix it
+Only then return the final JSON output.
+
 ${JSON_ONLY_INSTRUCTION}
-Your task is to enhance the resume to better match the job description while using ONLY the information already present in the resume.
-You may:
-- Reword bullets for clarity and impact
-- Reorder sections for relevance
-- Add relevant keywords from the JD where the experience already exists
-- Improve formatting and phrasing
-You must NOT:
-- Add new skills the candidate doesn't have
-- Invent work experience or achievements
-- Fabricate metrics or numbers
-- Add certifications or education not in the original
+
 
 PRESERVATION RULES — these exact values must appear unchanged in the output:
 - EMPLOYER NAMES (copy verbatim into every experience[].company): ${preserveEmployers || 'none'}
@@ -251,6 +278,7 @@ export function buildCoverLetterPrompt(
     formal: 'Professional, traditional, and polished. Use formal language, structured paragraphs, and conventional business letter format.',
     conversational: 'Warm, approachable, and authentic. Use natural language while maintaining professionalism. Show personality.',
     assertive: 'Confident, direct, and results-oriented. Lead with achievements and use strong action verbs. Be bold but not arrogant.',
+    enthusiastic: 'Passionate, energetic, and highly motivated. Highlight intense interest in the role and company. Use uplifting phrasing.',
   };
 
   const templateInstruction = template

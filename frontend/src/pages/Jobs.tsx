@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Briefcase, ExternalLink, Trash2, Loader2, AlertCircle, Tag, BarChart2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Briefcase, ExternalLink, Trash2, Loader2, AlertCircle, Tag, BarChart2, Edit3, X, Save } from 'lucide-react';
 import { DashboardLayout } from '../layouts/DashboardLayout';
-import { jdApi } from '../lib/api';
+import { jdApi, type JdExtractedData } from '../lib/api';
 import { jdStore, type JdRecord } from '../lib/storage';
 
 export function Jobs() {
@@ -11,6 +11,10 @@ export function Jobs() {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [editingJd, setEditingJd] = useState<JdRecord | null>(null);
+  const [editFormData, setEditFormData] = useState<JdExtractedData | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     // Load local first for speed
@@ -65,6 +69,28 @@ export function Jobs() {
     } catch (err) {
       console.error('Failed to delete JD:', err);
       // Optional: rollback on failure
+    }
+  }
+
+  function handleEditClick(job: JdRecord) {
+    setEditingJd(job);
+    setEditFormData(job.extracted_data ? JSON.parse(JSON.stringify(job.extracted_data)) : null);
+  }
+
+  async function handleSaveEdit() {
+    if (!editingJd || !editFormData) return;
+    setSavingEdit(true);
+    try {
+      const res = await jdApi.update(editingJd.id, editFormData);
+      const updatedJob = { ...editingJd, extracted_data: res.extracted_data, title: res.extracted_data.title, company: res.extracted_data.company };
+      jdStore.update(editingJd.id, updatedJob);
+      setJobs(jdStore.list());
+      setEditingJd(null);
+    } catch (err) {
+      console.error('Failed to update JD', err);
+      alert('Failed to update Job Description. Please try again.');
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -179,18 +205,116 @@ export function Jobs() {
                     </div>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleRemove(job.id)}
-                  className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 shrink-0"
-                  title="Remove"
-                >
-                  <Trash2 size={16} />
-                </button>
+                <div className="flex flex-col gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleEditClick(job)}
+                    className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                    title="Edit"
+                  >
+                    <Edit3 size={16} />
+                  </button>
+                  <button
+                    onClick={() => handleRemove(job.id)}
+                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Remove"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </motion.div>
             ))
           )}
         </div>
       </div>
+
+      {/* Edit Modal */}
+      <AnimatePresence>
+        {editingJd && editFormData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm"
+              onClick={() => !savingEdit && setEditingJd(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-gray-100 shrink-0">
+                <h2 className="text-xl font-bold text-gray-900">Edit Required Skills & Metadata</h2>
+                <button onClick={() => !savingEdit && setEditingJd(null)} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto flex-1 space-y-5">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Job Title</label>
+                    <input
+                      type="text"
+                      value={editFormData.title}
+                      onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Company</label>
+                    <input
+                      type="text"
+                      value={editFormData.company}
+                      onChange={(e) => setEditFormData({ ...editFormData, company: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Required Skills (comma separated)</label>
+                  <textarea
+                    rows={3}
+                    value={editFormData.required_skills.join(', ')}
+                    onChange={(e) => setEditFormData({ ...editFormData, required_skills: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Role Expectations</label>
+                  <textarea
+                    rows={4}
+                    value={editFormData.role_expectations.join('\n')}
+                    onChange={(e) => setEditFormData({ ...editFormData, role_expectations: e.target.value.split('\n').filter(Boolean) })}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 whitespace-pre-wrap"
+                  />
+                </div>
+              </div>
+
+              <div className="p-5 border-t border-gray-100 bg-gray-50 shrink-0 flex justify-end gap-3">
+                <button
+                  onClick={() => setEditingJd(null)}
+                  disabled={savingEdit}
+                  className="px-5 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={savingEdit}
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {savingEdit ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                  Save Changes
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </DashboardLayout>
   );
 }

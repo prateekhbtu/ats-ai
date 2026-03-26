@@ -28,6 +28,36 @@ versionRoutes.get('/:resume_id', async (c) => {
   return c.json({ versions }, 200);
 });
 
+// GET /api/version/detail/:id
+versionRoutes.get('/detail/:id', async (c) => {
+  const versionId = c.req.param('id');
+  const userId = c.get('userId');
+
+  if (!versionId || !isValidUUID(versionId)) {
+    throw new ValidationError('Valid version_id is required');
+  }
+
+  const { getVersionDetail } = await import('../services/version.service.js');
+  const detail = await getVersionDetail(versionId, userId, c.env.DATABASE_URL);
+
+  return c.json(detail, 200);
+});
+
+// DELETE /api/version/:id
+versionRoutes.delete('/:id', async (c) => {
+  const versionId = c.req.param('id');
+  const userId = c.get('userId');
+
+  if (!versionId || !isValidUUID(versionId)) {
+    throw new ValidationError('Valid version_id is required');
+  }
+
+  const { deleteVersion } = await import('../services/version.service.js');
+  await deleteVersion(versionId, userId, c.env.DATABASE_URL);
+
+  return c.json({ success: true }, 200);
+});
+
 // POST /api/version/restore
 versionRoutes.post('/restore', async (c) => {
   const body = await c.req.json<{ version_id?: string }>().catch(() => null);

@@ -59,7 +59,7 @@ async function insertVersionRowWithFallback(
           args.entityType,
           args.entityId,
           args.versionNumber,
-          JSON.stringify({ ...args.contentSnapshot, diff: args.diff }),
+          JSON.stringify({ ...(args.contentSnapshot as any), diff: args.diff }),
         ]
       );
     }
@@ -120,6 +120,23 @@ export async function getVersionDetail(
     content_snapshot: typeof row.content_snapshot === 'string' ? JSON.parse(row.content_snapshot) : row.content_snapshot,
     diff: typeof row.diff === 'string' ? JSON.parse(row.diff) : row.diff,
   };
+}
+
+/**
+ * Delete a specific version.
+ */
+export async function deleteVersion(
+  versionId: string,
+  userId: string,
+  databaseUrl: string
+): Promise<boolean> {
+  const { execute } = await import('./db.service.js');
+  await execute(
+    databaseUrl,
+    `DELETE FROM versions WHERE id = $1 AND user_id = $2`,
+    [versionId, userId]
+  );
+  return true;
 }
 
 /**

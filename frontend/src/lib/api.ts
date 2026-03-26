@@ -443,10 +443,18 @@ export const versionApi = {
   getHistory: (resume_id: string) =>
     request<{ versions: Version[] }>(`/api/version/${resume_id}`),
 
+  getDetail: (version_id: string) =>
+    request<Version & { content_snapshot: any }>(`/api/version/detail/${version_id}`),
+
   restore: (version_id: string) =>
     request<{ message: string }>('/api/version/restore', {
       method: 'POST',
       body: JSON.stringify({ version_id }),
+    }),
+
+  delete: (version_id: string) =>
+    request<{ success: boolean }>(`/api/version/${version_id}`, {
+      method: 'DELETE',
     }),
 
   save: (enhanced_resume_id: string, sections: ResumeSections) =>
