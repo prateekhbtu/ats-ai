@@ -51,7 +51,7 @@ async function insertEnhancedVersionSnapshot(
         databaseUrl,
         `INSERT INTO versions (id, user_id, resume_id, entity_type, entity_id, version_number, content_snapshot)
          VALUES (gen_random_uuid(), $1, $2, 'enhanced_resume', $3, $4, $5)`,
-        [userId, resumeId, entityId, versionNumber, JSON.stringify({ ...snapshot, diff })]
+        [userId, resumeId, entityId, versionNumber, JSON.stringify(Object.assign({}, snapshot as Record<string, unknown>, { diff }))]
       );
       return;
     }

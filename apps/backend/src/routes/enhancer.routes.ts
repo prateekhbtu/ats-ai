@@ -44,6 +44,11 @@ enhancerRoutes.post('/resume', llmRateLimiter(), async (c) => {
   }
 
   const userId = c.get('userId');
+
+  // Enforce freemium AI limit
+  const { enforceAiLimit } = await import('../services/ai-usage.service.js');
+  await enforceAiLimit(userId, 'resume_enhance', c.env.DATABASE_URL, c.env.FREE_TIER_LIMIT ? parseInt(c.env.FREE_TIER_LIMIT, 10) : undefined);
+
   const result = await enhanceResume(
     body.resume_id,
     body.jd_id,
@@ -87,6 +92,11 @@ enhancerRoutes.post('/refine', llmRateLimiter(), async (c) => {
   }
 
   const userId = c.get('userId');
+
+  // Enforce freemium AI limit
+  const { enforceAiLimit } = await import('../services/ai-usage.service.js');
+  await enforceAiLimit(userId, 'resume_refine', c.env.DATABASE_URL, c.env.FREE_TIER_LIMIT ? parseInt(c.env.FREE_TIER_LIMIT, 10) : undefined);
+
   const result = await refineResume(
     body.enhanced_resume_id,
     body.instructions,
@@ -150,6 +160,11 @@ enhancerRoutes.post('/optimize-section', llmRateLimiter(), async (c) => {
   }
 
   const userId = c.get('userId');
+
+  // Enforce freemium AI limit
+  const { enforceAiLimit: enforceLimit } = await import('../services/ai-usage.service.js');
+  await enforceLimit(userId, 'resume_optimize_section', c.env.DATABASE_URL);
+
   const result = await optimizeSelectedSection(
     body.enhanced_resume_id,
     body.section_path,

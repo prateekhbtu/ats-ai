@@ -1,9 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Mail, Shield, Camera, Loader2, AlertCircle, CheckCircle2, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { User, Mail, Shield, Camera, Loader2, AlertCircle, CheckCircle2, Eye, EyeOff, Trash2, Sparkles, Clock } from 'lucide-react';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
-import { profileApi, authApi, type ProfileUpdateData } from '../lib/api';
+import { profileApi, authApi, usageApi, type ProfileUpdateData, type UsageStatus } from '../lib/api';
 
 export function Settings() {
   const { user, updateUser, logout } = useAuth();
@@ -35,6 +35,18 @@ export function Settings() {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // AI Usage
+  const [aiUsage, setAiUsage] = useState<UsageStatus | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
+
+  useEffect(() => {
+    setUsageLoading(true);
+    usageApi.getStatus()
+      .then(setAiUsage)
+      .catch(() => {/* ignore */})
+      .finally(() => setUsageLoading(false));
+  }, []);
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -276,6 +288,95 @@ export function Settings() {
               </button>
             </div>
           </form>
+        </motion.div>
+
+        {/* ─── AI Usage ─── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
+        >
+          <div className="px-8 py-6 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center">
+              <Sparkles size={18} />
+            </div>
+            <div>
+              <h2 className="font-semibold text-gray-900 text-lg">AI Usage</h2>
+              <p className="text-xs text-gray-500">Track your free AI requests across all features.</p>
+            </div>
+          </div>
+
+          <div className="p-8">
+            {usageLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 size={20} className="animate-spin text-gray-400" />
+              </div>
+            ) : aiUsage ? (
+              <div className="space-y-6">
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Requests Used</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-1">
+                      {aiUsage.used} <span className="text-lg text-gray-400 font-medium">/ {aiUsage.limit}</span>
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Remaining</p>
+                    <p className={`text-3xl font-bold mt-1 ${
+                      aiUsage.remaining > 2 ? 'text-green-600' : aiUsage.remaining > 0 ? 'text-amber-500' : 'text-red-500'
+                    }`}>
+                      {aiUsage.remaining}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="w-full h-4 bg-gray-100 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(aiUsage.used / aiUsage.limit) * 100}%` }}
+                      transition={{ duration: 0.8, ease: 'easeOut' }}
+                      className={`h-full rounded-full transition-colors ${
+                        aiUsage.remaining > 2 ? 'bg-green-500' : aiUsage.remaining > 0 ? 'bg-amber-400' : 'bg-red-500'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                {aiUsage.resets_at && (
+                  <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 rounded-xl p-3 border border-gray-200">
+                    <Clock size={14} className="shrink-0 text-gray-400" />
+                    <span>
+                      Limit resets at{' '}
+                      <strong className="text-gray-700">
+                        {new Date(aiUsage.resets_at).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })}
+                      </strong>
+                    </span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-3 gap-3 pt-2">
+                  {[
+                    { label: 'Enhancer', feature: 'resume_enhance' },
+                    { label: 'Cover Letter', feature: 'cover_letter' },
+                    { label: 'Interview / Writing', feature: 'other' },
+                  ].map((item) => (
+                    <div key={item.feature} className="bg-gray-50 rounded-xl p-3 border border-gray-200 text-center">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{item.label}</p>
+                      <p className="text-xs text-gray-500 mt-1">Included in limit</p>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Free plan: <strong>{aiUsage.limit} AI requests</strong> per 24-hour rolling window across Resume Enhancer, Cover Letter Generator, Interview Prep, and Writing Analysis.
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">Unable to load usage data.</p>
+            )}
+          </div>
         </motion.div>
 
         {/* ─── Security ─── */}

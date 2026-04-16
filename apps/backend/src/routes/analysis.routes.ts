@@ -38,6 +38,11 @@ analysisRoutes.post('/uniscore', llmRateLimiter(), async (c) => {
   }
 
   const userId = c.get('userId');
+
+  // Enforce freemium AI limit
+  const { enforceAiLimit } = await import('../services/ai-usage.service.js');
+  await enforceAiLimit(userId, 'uniscore_analysis', c.env.DATABASE_URL, c.env.FREE_TIER_LIMIT ? parseInt(c.env.FREE_TIER_LIMIT, 10) : undefined);
+
   const result = await computeAndStoreUniScore(
     body.resume_id,
     body.jd_id,

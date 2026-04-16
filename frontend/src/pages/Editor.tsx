@@ -6,12 +6,14 @@ import {
 } from 'lucide-react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import {
-  resumeApi, jdApi, analysisApi, enhancerApi,
+  resumeApi, jdApi, analysisApi, enhancerApi, versionApi,
   type UniScoreResult, type EnhancedResumeResult, type ResumeSections,
-  type ResumeDetail,
+  type ResumeDetail, type Version,
 } from '../lib/api';
 import { resumeStore, jdStore, type ResumeRecord, type JdRecord } from '../lib/storage';
 import { ExportModal } from '../components/ExportModal';
+import { PaywallModal } from '../components/PaywallModal';
+import { useAiUsage } from '../hooks/useAiUsage';
 
 // ─── Resume Preview Renderer ────────────────────────────────────────────────
 
@@ -514,6 +516,17 @@ export function Editor() {
   // Editing
   const [editingSection, setEditingSection] = useState<{ key: string; index?: number } | null>(null);
 
+  // Left panel view toggle
+  const [leftView, setLeftView] = useState<'original' | 'enhanced'>('original');
+
+  // Version history for right panel
+  const [versionList, setVersionList] = useState<Version[]>([]);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  const [applyingSuggestion, setApplyingSuggestion] = useState<number | null>(null);
+
+  // AI usage / paywall
+  const { usage, showPaywall, handleAiError, closePaywall, refreshUsage } = useAiUsage();
+
   // Load resources from both localStorage AND API
   useEffect(() => {
     async function loadResources() {
@@ -597,10 +610,67 @@ export function Editor() {
       // Step 2: Enhance
       const result = await enhancerApi.enhance(resumeId, jdId, score.analysis_id);
       setEnhanceResult(result);
+
+      // Step 3: Load version history
+      if (resumeId) {
+        try {
+          const vh = await versionApi.getHistory(resumeId);
+          setVersionList(vh.versions);
+        } catch { /* ignore */ }
+      }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Enhancement failed.');
+      if (!handleAiError(err)) {
+        setError(err instanceof Error ? err.message : 'Enhancement failed.');
+      }
     } finally {
       setEnhancing(false);
+      refreshUsage();
+    }
+  }
+
+  async function handleSwitchVersion(versionId: string) {
+    setLoadingVersions(true);
+    setError(null);
+    try {
+      const detail = await versionApi.getDetail(versionId);
+      if (detail.content_snapshot?.enhanced_sections) {
+        setEnhanceResult(prev => prev ? {
+          ...prev,
+          enhanced_sections: detail.content_snapshot.enhanced_sections,
+          version: detail.version_number,
+          diff: detail.content_snapshot.diff || prev.diff,
+        } : prev);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load version.');
+    } finally {
+      setLoadingVersions(false);
+    }
+  }
+
+  async function handleApplySuggestion(weakness: string, idx: number) {
+    if (!enhanceResult) return;
+    setApplyingSuggestion(idx);
+    setError(null);
+    try {
+      const result = await enhancerApi.refine(enhanceResult.id, `Fix this weakness to improve ATS score: ${weakness}`);
+      setEnhanceResult(result);
+      setSavedMsg(`Suggestion applied — Version ${result.version}!`);
+      setTimeout(() => setSavedMsg(null), 3000);
+      // Refresh versions
+      if (resumeId) {
+        try {
+          const vh = await versionApi.getHistory(resumeId);
+          setVersionList(vh.versions);
+        } catch { /* ignore */ }
+      }
+    } catch (err: unknown) {
+      if (!handleAiError(err)) {
+        setError(err instanceof Error ? err.message : 'Failed to apply suggestion.');
+      }
+    } finally {
+      setApplyingSuggestion(null);
+      refreshUsage();
     }
   }
 
@@ -761,31 +831,76 @@ export function Editor() {
 
       {/* Main Split View */}
       <main className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
-        {/* LEFT: Original Resume */}
+        {/* LEFT: Original / Enhanced Resume */}
         <div className="flex-1 lg:flex-[1_1_50%] border-b lg:border-b-0 lg:border-r border-gray-200 bg-gray-100/50 lg:overflow-y-auto relative flex flex-col min-h-[500px] lg:min-h-0">
           <div className="absolute inset-0 bg-grid-pattern opacity-20 pointer-events-none" />
-          <div className={`p-4 sm:p-6 relative z-10 flex flex-col ${pdfUrl ? 'h-full w-full' : 'min-h-full items-start'}`}>
+
+          {/* View Toggle */}
+          {enhanceResult && (
+            <div className="relative z-10 px-4 sm:px-6 pt-4">
+              <div className="flex bg-gray-200/70 rounded-xl p-1 gap-0.5">
+                <button
+                  onClick={() => setLeftView('original')}
+                  className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all ${
+                    leftView === 'original'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Original
+                </button>
+                <button
+                  onClick={() => setLeftView('enhanced')}
+                  className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all ${
+                    leftView === 'enhanced'
+                      ? 'bg-orange-500 text-white shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Enhanced v{enhanceResult.version}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className={`p-4 sm:p-6 relative z-10 flex flex-col ${pdfUrl && leftView === 'original' ? 'h-full w-full' : 'min-h-full items-start'}`}>
             {loadingResume ? (
               <div className="flex flex-col items-center justify-center min-h-[400px] gap-3 text-gray-500 w-full mt-20">
                 <Loader2 size={24} className="animate-spin" />
                 <p className="text-sm">Loading resume…</p>
               </div>
             ) : originalResume ? (
-              <div className={`w-full flex flex-col pt-2 ${!pdfUrl ? 'max-w-[800px] mx-auto' : 'h-full'}`}>
+              <div className={`w-full flex flex-col pt-2 ${!(pdfUrl && leftView === 'original') ? 'max-w-[800px] mx-auto' : 'h-full'}`}>
                 <div className="mb-3 flex items-center justify-between shrink-0">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Original Resume</span>
-                  {pdfUrl && <span className="text-[10px] font-bold text-green-700 uppercase tracking-widest bg-green-100 px-2 py-0.5 rounded shadow-sm border border-green-300">Exact Uploaded File</span>}
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                    {leftView === 'original' ? 'Original Resume' : 'Enhanced Resume'}
+                  </span>
+                  {leftView === 'original' && pdfUrl && <span className="text-[10px] font-bold text-green-700 uppercase tracking-widest bg-green-100 px-2 py-0.5 rounded shadow-sm border border-green-300">Exact Uploaded File</span>}
+                  {leftView === 'enhanced' && <span className="text-[10px] font-bold text-orange-700 uppercase tracking-widest bg-orange-100 px-2 py-0.5 rounded shadow-sm border border-orange-300">AI Enhanced</span>}
                 </div>
-                {pdfUrl ? (
-                  <div className="flex-1 w-full bg-white border border-gray-200 shadow-xl overflow-hidden rounded-md flex flex-col min-h-[500px]">
-                    <iframe src={`${pdfUrl}#toolbar=0&navpanes=0`} className="flex-1 w-full h-full border-none m-0 p-0" title="Original Resume PDF" />
-                  </div>
+
+                {leftView === 'original' ? (
+                  // Original view
+                  pdfUrl ? (
+                    <div className="flex-1 w-full bg-white border border-gray-200 shadow-xl overflow-hidden rounded-md flex flex-col min-h-[500px]">
+                      <iframe src={`${pdfUrl}#toolbar=0&navpanes=0`} className="flex-1 w-full h-full border-none m-0 p-0" title="Original Resume PDF" />
+                    </div>
+                  ) : (
+                    <ResumePreview
+                      sections={originalResume.sections}
+                      title="Original Resume"
+                      subtitle={originalResume.original_filename}
+                    />
+                  )
                 ) : (
-                  <ResumePreview
-                    sections={originalResume.sections}
-                    title="Original Resume"
-                    subtitle={originalResume.original_filename}
-                  />
+                  // Enhanced view on the left
+                  enhanceResult ? (
+                    <ResumePreview
+                      sections={enhanceResult.enhanced_sections}
+                      title="Enhanced Resume"
+                      subtitle={`Version ${enhanceResult.version}`}
+                    />
+                  ) : null
                 )}
               </div>
             ) : (
@@ -821,10 +936,30 @@ export function Editor() {
               </div>
             ) : enhanceResult ? (
               <div className="w-full max-w-[700px]">
+                {/* Header with version dropdown */}
                 <div className="mb-3 flex items-center justify-between">
                   <span className="text-[10px] font-bold text-orange-500 uppercase tracking-widest">Enhanced by AI</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-gray-400">Version {enhanceResult.version}</span>
+                    {versionList.length > 1 && (
+                      <select
+                        value={enhanceResult.version}
+                        onChange={(e) => {
+                          const v = versionList.find(v => v.version_number === Number(e.target.value));
+                          if (v) handleSwitchVersion(v.id);
+                        }}
+                        disabled={loadingVersions}
+                        className="bg-gray-50 border border-gray-200 text-gray-700 text-[11px] font-bold rounded-lg px-2 py-1 pr-6 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                        style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.25rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.2em 1.2em' }}
+                      >
+                        {versionList.map(v => (
+                          <option key={v.id} value={v.version_number}>v{v.version_number}</option>
+                        ))}
+                      </select>
+                    )}
+                    {loadingVersions && <Loader2 size={12} className="animate-spin text-gray-400" />}
+                    {!loadingVersions && (
+                      <span className="text-[10px] text-gray-400">Version {enhanceResult.version}</span>
+                    )}
                     {enhanceResult.diff && (
                       <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded">
                         {enhanceResult.diff.filter(d => d.change_type !== 'unchanged').length} changes
@@ -900,6 +1035,35 @@ export function Editor() {
                     </div>
                   </div>
                 )}
+
+                {/* ATS Improvement Suggestions */}
+                {scoreResult && scoreResult.weaknesses && scoreResult.weaknesses.length > 0 && !editingSection && (
+                  <div className="mt-4 bg-orange-50 rounded-2xl border border-orange-200 p-4">
+                    <h3 className="text-xs font-bold text-orange-600 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                      <Sparkles size={12} /> Suggestions to Improve ATS Score
+                    </h3>
+                    <div className="space-y-2">
+                      {scoreResult.weaknesses.map((w, i) => (
+                        <button
+                          key={i}
+                          onClick={() => handleApplySuggestion(w, i)}
+                          disabled={applyingSuggestion !== null}
+                          className="w-full text-left flex items-start gap-2.5 p-3 bg-white border border-orange-200 rounded-xl hover:border-orange-400 hover:bg-orange-50/50 transition-all group disabled:opacity-60"
+                        >
+                          <div className="w-6 h-6 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-orange-500 group-hover:text-white transition-colors">
+                            {applyingSuggestion === i ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-700 leading-snug">{w}</p>
+                            <p className="text-[10px] text-orange-500 font-medium mt-1 group-hover:text-orange-600">
+                              {applyingSuggestion === i ? 'Applying…' : 'Click to auto-fix with AI →'}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
@@ -932,6 +1096,7 @@ export function Editor() {
         content={enhanceResult?.enhanced_sections!} 
         metadata={{ userName: originalResume?.candidate_name || originalResume?.original_filename?.replace(/\.[^/.]+$/, "") || 'Your Name' }} 
       />
+      <PaywallModal isOpen={showPaywall} onClose={closePaywall} usage={usage} />
     </div>
   );
 }

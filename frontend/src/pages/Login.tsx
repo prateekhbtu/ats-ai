@@ -10,7 +10,7 @@ export function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/upload';
+  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/dashboard';
 
   const [form, setForm] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);

@@ -15,6 +15,18 @@ coverLetterRoutes.use('/*', authMiddleware);
 
 const VALID_TONES: CoverLetterTone[] = ['formal', 'conversational', 'assertive'];
 
+// GET /api/cover-letter/list – All cover letters for the current user
+coverLetterRoutes.get('/list', async (c) => {
+  const userId = c.get('userId');
+  const { query } = await import('../services/db.service.js');
+  const rows = await query<{ id: string; tone: string; created_at: string; updated_at: string }>(
+    c.env.DATABASE_URL,
+    `SELECT id, tone, created_at, updated_at FROM cover_letters WHERE user_id = $1 ORDER BY created_at DESC`,
+    [userId]
+  );
+  return c.json({ cover_letters: rows }, 200);
+});
+
 // POST /api/cover-letter/generate
 coverLetterRoutes.post('/generate', llmRateLimiter(), async (c) => {
   const body = await c.req.json<{
@@ -49,6 +61,11 @@ coverLetterRoutes.post('/generate', llmRateLimiter(), async (c) => {
   }
 
   const userId = c.get('userId');
+
+  // Enforce freemium AI limit
+  const { enforceAiLimit } = await import('../services/ai-usage.service.js');
+  await enforceAiLimit(userId, 'cover_letter_generate', c.env.DATABASE_URL, c.env.FREE_TIER_LIMIT ? parseInt(c.env.FREE_TIER_LIMIT, 10) : undefined);
+
   const result = await generateCoverLetter(
     body.resume_id,
     body.jd_id,
@@ -71,6 +88,48 @@ coverLetterRoutes.get('/:id', async (c) => {
   }
 
   const result = await getCoverLetterById(clId, userId, c.env.DATABASE_URL);
+  return c.json(result, 200);
+});
+
+// PUT /api/cover-letter/:id – Manual edit
+coverLetterRoutes.put('/:id', async (c) => {
+  const clId = c.req.param('id');
+  const userId = c.get('userId');
+
+  if (!clId || !isValidUUID(clId)) {
+    throw new ValidationError('Valid cover letter id is required');
+  }
+
+  const body = await c.req.json<{ content?: string }>().catch(() => null);
+  if (!body || !body.content || typeof body.content !== 'string') {
+    throw new ValidationError('content is required');
+  }
+
+  const { updateCoverLetterContent } = await import('../services/cover-letter.service.js');
+  const result = await updateCoverLetterContent(clId, body.content, userId, c.env.DATABASE_URL);
+  return c.json(result, 200);
+});
+
+// POST /api/cover-letter/:id/refine – AI refinement
+coverLetterRoutes.post('/:id/refine', llmRateLimiter(), async (c) => {
+  const clId = c.req.param('id');
+  const userId = c.get('userId');
+
+  if (!clId || !isValidUUID(clId)) {
+    throw new ValidationError('Valid cover letter id is required');
+  }
+
+  const body = await c.req.json<{ instruction?: string }>().catch(() => null);
+  if (!body || !body.instruction || typeof body.instruction !== 'string') {
+    throw new ValidationError('instruction is required');
+  }
+
+  // Enforce freemium AI limit
+  const { enforceAiLimit } = await import('../services/ai-usage.service.js');
+  await enforceAiLimit(userId, 'cover_letter_refine', c.env.DATABASE_URL, c.env.FREE_TIER_LIMIT ? parseInt(c.env.FREE_TIER_LIMIT, 10) : undefined);
+
+  const { refineCoverLetter } = await import('../services/cover-letter.service.js');
+  const result = await refineCoverLetter(clId, body.instruction, userId, c.env);
   return c.json(result, 200);
 });
 

@@ -26,6 +26,7 @@ import writingRoutes from './routes/writing.routes.js'
 import interviewRoutes from './routes/interview.routes.js'
 import versionRoutes from './routes/version.routes.js'
 import profileRoutes from './routes/profile.routes.js'
+import usageRoutes from './routes/usage.routes.js'
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>()
 
@@ -112,6 +113,7 @@ app.route('/api/cover-letter', coverLetterRoutes)
 app.route('/api/writing', writingRoutes)
 app.route('/api/interview', interviewRoutes)
 app.route('/api/version', versionRoutes)
+app.route('/api/usage', usageRoutes)
 
 app.notFound((c) => {
 return c.json({ error: 'Not found', code: 'NOT_FOUND' }, 404)

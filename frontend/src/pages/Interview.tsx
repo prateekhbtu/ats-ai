@@ -8,6 +8,8 @@ import { DashboardLayout } from '../layouts/DashboardLayout';
 import { interviewApi, type InterviewQuestion } from '../lib/api';
 import { resumeStore, jdStore, type ResumeRecord, type JdRecord } from '../lib/storage';
 import { cn } from '../lib/utils';
+import { PaywallModal } from '../components/PaywallModal';
+import { useAiUsage } from '../hooks/useAiUsage';
 
 const CATEGORY_META: Record<InterviewQuestion['category'], { label: string; color: string; icon: React.ElementType }> = {
   technical: { label: 'Technical', color: 'blue', icon: Wrench },
@@ -84,6 +86,9 @@ export function Interview() {
   const [error, setError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<InterviewQuestion['category'] | 'all'>('all');
 
+  // AI usage / paywall
+  const { usage, showPaywall, handleAiError, closePaywall, refreshUsage } = useAiUsage();
+
   useEffect(() => {
     const r = resumeStore.list();
     const j = jdStore.list();
@@ -102,9 +107,12 @@ export function Interview() {
       setQuestions(res.questions);
       setActiveCategory('all');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to generate questions. Please try again.');
+      if (!handleAiError(err)) {
+        setError(err instanceof Error ? err.message : 'Failed to generate questions. Please try again.');
+      }
     } finally {
       setLoading(false);
+      refreshUsage();
     }
   }
 
@@ -120,6 +128,7 @@ export function Interview() {
   const hasJobs = jobs.length > 0;
 
   return (
+    <>
     <DashboardLayout>
       <header className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 mb-10">
         <div>
@@ -281,5 +290,7 @@ export function Interview() {
         </div>
       )}
     </DashboardLayout>
+    <PaywallModal isOpen={showPaywall} onClose={closePaywall} usage={usage} />
+    </>
   );
 }

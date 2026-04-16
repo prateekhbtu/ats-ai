@@ -147,15 +147,16 @@ export function Dashboard() {
     if (file) handleUpload(file);
   }
 
-  const avgScore = (() => {
-    const scored = resumes.filter((r) => r.ats_score !== undefined);
-    if (scored.length === 0) return 0;
-    return Math.round(scored.reduce((s, r) => s + (r.ats_score || 0), 0) / scored.length);
+  const lastScore = (() => {
+    // Sort by created_at desc, pick the first one that has a score
+    const sorted = [...resumes].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const latest = sorted.find((r) => r.ats_score !== undefined);
+    return latest?.ats_score ?? null;
   })();
 
   const stats = [
     { label: 'Total Resumes', value: String(resumes.length), icon: FileText, color: 'orange' },
-    { label: 'Avg ATS Score', value: resumes.some(r => r.ats_score) ? `${avgScore}%` : '—', icon: TrendingUp, color: 'green' },
+    { label: 'Last ATS Score', value: lastScore !== null ? `${lastScore}` : '—', icon: TrendingUp, color: 'green' },
     { label: 'Quick Access', value: 'Enhance', icon: Sparkles, color: 'blue', link: '/editor' },
   ];
 

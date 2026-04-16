@@ -39,7 +39,7 @@ export function Signup() {
     setLoading(true);
     try {
       await register(form.email, form.password, form.name);
-      navigate('/upload', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
     } finally {
@@ -215,7 +215,7 @@ export function Signup() {
 
             <GoogleSignInButton
               variant="signup"
-              redirectTo="/upload"
+              redirectTo="/dashboard"
               onError={(msg) => setError(msg)}
             />
 

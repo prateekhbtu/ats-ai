@@ -7,6 +7,8 @@ import {
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { writingApi, type WritingAnalysisResult, type WritingIssue } from '../lib/api';
 import { cn } from '../lib/utils';
+import { PaywallModal } from '../components/PaywallModal';
+import { useAiUsage } from '../hooks/useAiUsage';
 
 const SEVERITY_META: Record<WritingIssue['severity'], { label: string; bg: string; text: string; border: string; icon: React.ElementType }> = {
   high: { label: 'High', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', icon: AlertTriangle },
@@ -98,6 +100,9 @@ export function Writing() {
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<WritingIssue['severity'] | 'all'>('all');
 
+  // AI usage / paywall
+  const { usage, showPaywall, handleAiError, closePaywall, refreshUsage } = useAiUsage();
+
   async function handleAnalyze() {
     if (text.trim().length < 30) {
       setError('Please enter at least 30 characters of text to analyze.');
@@ -110,9 +115,12 @@ export function Writing() {
       setResult(res);
       setActiveFilter('all');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Analysis failed. Please try again.');
+      if (!handleAiError(err)) {
+        setError(err instanceof Error ? err.message : 'Analysis failed. Please try again.');
+      }
     } finally {
       setLoading(false);
+      refreshUsage();
     }
   }
 
@@ -138,6 +146,7 @@ export function Writing() {
     : '';
 
   return (
+    <>
     <DashboardLayout>
       <header className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 mb-10">
         <div>
@@ -328,5 +337,7 @@ export function Writing() {
         </div>
       )}
     </DashboardLayout>
+    <PaywallModal isOpen={showPaywall} onClose={closePaywall} usage={usage} />
+    </>
   );
 }

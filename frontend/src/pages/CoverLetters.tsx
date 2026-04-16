@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft, FileText, Sparkles, Loader2, Download,
-  AlertCircle, Edit3, CheckCircle2, RefreshCw,
+  AlertCircle, Edit3, CheckCircle2, RefreshCw, Wand2, Save,
 } from 'lucide-react';
 import { resumeStore, jdStore, type ResumeRecord, type JdRecord } from '../lib/storage';
 import { coverLetterApi } from '../lib/api';
 import { ExportModal } from '../components/ExportModal';
+import { PaywallModal } from '../components/PaywallModal';
+import { useAiUsage } from '../hooks/useAiUsage';
 
 type Tone = 'formal' | 'conversational' | 'assertive' | 'enthusiastic';
 
@@ -37,11 +39,26 @@ export function CoverLetters() {
 
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
+  const [coverletterId, setCoverletterId] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState('');
   const [generated, setGenerated] = useState(false);
 
+  // Edit mode
+  const [editTab, setEditTab] = useState<'manual' | 'ai'>('manual');
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   const [exportModalOpen, setExportModalOpen] = useState(false);
+
+  // AI usage / paywall
+  const { usage, showPaywall, handleAiError, closePaywall, refreshUsage } = useAiUsage();
+
+  // Cover letter history
+  const [clHistory, setClHistory] = useState<Array<{ id: string; tone: string; created_at: string; updated_at: string }>>([]);
+  const [loadingCl, setLoadingCl] = useState(false);
 
   const selectedResume = resumes.find(r => r.id === resumeId);
   const selectedJd = jobs.find(j => j.id === jdId);
@@ -63,15 +80,62 @@ export function CoverLetters() {
     setError(null);
     setGenerating(true);
     setGenerated(false);
+    setSavedMsg(null);
 
     try {
       const result = await coverLetterApi.generate(resumeId, jdId, tone);
       setEditedContent(result.content);
+      setCoverletterId(result.id);
       setGenerated(true);
+
+      // Refresh cover letter history
+      try {
+        const hist = await coverLetterApi.list();
+        setClHistory(hist.cover_letters);
+      } catch { /* ignore */ }
     } catch (err: any) {
-      setError(err?.message || 'Failed to generate cover letter. Please try again.');
+      if (!handleAiError(err)) {
+        setError(err?.message || 'Failed to generate cover letter. Please try again.');
+      }
     } finally {
       setGenerating(false);
+      refreshUsage();
+    }
+  }
+
+  async function handleManualSave() {
+    if (!coverletterId || !editedContent.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const result = await coverLetterApi.update(coverletterId, editedContent);
+      setEditedContent(result.content);
+      setSavedMsg('Cover letter saved successfully!');
+      setTimeout(() => setSavedMsg(null), 3000);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save changes.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleAiRefine() {
+    if (!coverletterId || !aiPrompt.trim()) return;
+    setAiLoading(true);
+    setError(null);
+    try {
+      const result = await coverLetterApi.refine(coverletterId, aiPrompt.trim());
+      setEditedContent(result.content);
+      setAiPrompt('');
+      setSavedMsg(`AI refined — ${result.word_count} words`);
+      setTimeout(() => setSavedMsg(null), 3000);
+    } catch (err: any) {
+      if (!handleAiError(err)) {
+        setError(err?.message || 'AI refinement failed.');
+      }
+    } finally {
+      setAiLoading(false);
+      refreshUsage();
     }
   }
 
@@ -108,7 +172,7 @@ export function CoverLetters() {
         <div className="flex items-center gap-2">
           {generated && (
             <button
-              onClick={() => { setGenerated(false); setEditedContent(''); }}
+              onClick={() => { setGenerated(false); setEditedContent(''); setCoverletterId(null); setSavedMsg(null); }}
               className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <RefreshCw size={13} /> New
@@ -141,6 +205,18 @@ export function CoverLetters() {
           </motion.div>
         )}
 
+        {/* Success Banner */}
+        {savedMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 text-green-700 rounded-xl text-sm font-medium shadow-sm"
+          >
+            <CheckCircle2 size={16} className="shrink-0" />
+            {savedMsg}
+          </motion.div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
           {/* ── LEFT SIDEBAR ── */}
@@ -164,7 +240,7 @@ export function CoverLetters() {
                   >
                     {resumes.length === 0
                       ? <option value="" disabled>No resumes uploaded</option>
-                      : resumes.map(r => <option key={r.id} value={r.id}>{r.original_filename}</option>)
+                      : resumes.map(r => <option key={r.id} value={r.id}>{r.candidate_name || r.original_filename}</option>)
                     }
                   </select>
                 </div>
@@ -247,7 +323,7 @@ export function CoverLetters() {
                 <h3 className="text-xl font-extrabold text-gray-900 mb-2">Drafting your letter…</h3>
                 <p className="text-gray-500 text-sm max-w-sm leading-relaxed">
                   Merging{' '}
-                  <strong className="text-gray-700">{selectedResume?.original_filename ?? 'your resume'}</strong>
+                  <strong className="text-gray-700">{(selectedResume?.candidate_name || selectedResume?.original_filename) ?? 'your resume'}</strong>
                   {' '}with{' '}
                   <strong className="text-gray-700">{selectedJd?.title ?? 'the job'}</strong>
                   {selectedJd?.company ? <> at <strong className="text-gray-700">{selectedJd.company}</strong></> : null}
@@ -264,27 +340,143 @@ export function CoverLetters() {
               </div>
             )}
 
-            {/* Generated editor */}
+            {/* Generated editor with tab bar */}
             {!generating && generated && (
-              <div className="flex-1 flex flex-col p-5 sm:p-6">
-                <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-4">
-                  <div className="w-9 h-9 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
-                    <Edit3 size={16} />
+              <div className="flex-1 flex flex-col">
+                {/* Version switcher + tab bar */}
+                {clHistory.length > 1 && (
+                  <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Letter:</span>
+                    <select
+                      value={coverletterId || ''}
+                      onChange={async (e) => {
+                        setLoadingCl(true);
+                        try {
+                          const cl = await coverLetterApi.get(e.target.value);
+                          setCoverletterId(cl.id);
+                          setEditedContent(cl.content);
+                          setTone(cl.tone as Tone);
+                        } catch { /* ignore */ }
+                        setLoadingCl(false);
+                      }}
+                      disabled={loadingCl}
+                      className="bg-white border border-gray-200 text-gray-700 text-[11px] font-medium rounded-lg px-2 py-1 pr-6 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                      style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.25rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.2em 1.2em' }}
+                    >
+                      {clHistory.map((cl) => (
+                        <option key={cl.id} value={cl.id}>
+                          {cl.tone} — {new Date(cl.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </option>
+                      ))}
+                    </select>
+                    {loadingCl && <Loader2 size={12} className="animate-spin text-gray-400" />}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-extrabold text-gray-900">Edit Before Exporting</h3>
-                    <p className="text-[11px] text-gray-500 leading-snug">Tweak the AI draft directly — then choose a template to export as PDF.</p>
-                  </div>
-                  <span className="shrink-0 hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-700 border border-orange-200">
-                    {TONES.find(t => t.id === tone)?.icon} {tone}
-                  </span>
+                )}
+                {/* Tab Bar: Manual vs AI */}
+                <div className="flex border-b border-gray-100">
+                  <button
+                    onClick={() => setEditTab('manual')}
+                    className={`flex-1 py-3.5 text-xs font-extrabold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 ${
+                      editTab === 'manual'
+                        ? 'text-gray-900 border-b-2 border-gray-900 bg-white'
+                        : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50 border-b border-gray-200'
+                    }`}
+                  >
+                    <Edit3 size={14} /> Manual Edit
+                  </button>
+                  <button
+                    onClick={() => setEditTab('ai')}
+                    className={`flex-1 py-3.5 text-xs font-extrabold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 ${
+                      editTab === 'ai'
+                        ? 'text-orange-500 bg-orange-50 border-b-2 border-orange-500'
+                        : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50 border-b border-gray-200'
+                    }`}
+                  >
+                    <Wand2 size={14} /> AI Edit
+                  </button>
                 </div>
-                <textarea
-                  value={editedContent}
-                  onChange={e => setEditedContent(e.target.value)}
-                  className="flex-1 w-full bg-gray-50/60 text-gray-800 p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 resize-none font-sans text-sm leading-relaxed min-h-[380px] sm:min-h-[420px]"
-                  placeholder="Your generated cover letter will appear here…"
-                />
+
+                {editTab === 'manual' ? (
+                  /* Manual Edit Tab */
+                  <div className="flex-1 flex flex-col p-5 sm:p-6">
+                    <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-4">
+                      <div className="w-9 h-9 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center shrink-0">
+                        <Edit3 size={16} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-extrabold text-gray-900">Manual Editor</h3>
+                        <p className="text-[11px] text-gray-500 leading-snug">Edit the cover letter directly — changes are saved to the database.</p>
+                      </div>
+                      <span className="shrink-0 hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-700 border border-orange-200">
+                        {TONES.find(t => t.id === tone)?.icon} {tone}
+                      </span>
+                    </div>
+                    <textarea
+                      value={editedContent}
+                      onChange={e => setEditedContent(e.target.value)}
+                      className="flex-1 w-full bg-gray-50/60 text-gray-800 p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 resize-none font-sans text-sm leading-relaxed min-h-[380px] sm:min-h-[420px]"
+                      placeholder="Your generated cover letter will appear here…"
+                    />
+                    <div className="flex items-center gap-3 mt-4">
+                      <button
+                        onClick={handleManualSave}
+                        disabled={saving || !editedContent.trim()}
+                        className="flex-1 bg-[#0A0A0A] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-black/80 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                        Save Changes
+                      </button>
+                      <span className="text-xs text-gray-400 font-medium">
+                        {editedContent.split(/\s+/).filter(Boolean).length} words
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  /* AI Edit Tab */
+                  <div className="flex-1 flex flex-col p-5 sm:p-6">
+                    <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-4">
+                      <div className="w-9 h-9 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
+                        <Wand2 size={16} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-extrabold text-gray-900">AI Refinement</h3>
+                        <p className="text-[11px] text-gray-500 leading-snug">Describe how to modify the letter — AI will rewrite it while preserving structure.</p>
+                      </div>
+                    </div>
+
+                    {/* Current preview (read-only) */}
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4 max-h-[280px] overflow-y-auto">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Current Draft</span>
+                        <span className="text-[10px] text-gray-400 font-medium">
+                          {editedContent.split(/\s+/).filter(Boolean).length} words
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{editedContent}</p>
+                    </div>
+
+                    {/* AI Instruction */}
+                    <div className="bg-orange-50/50 border border-orange-200 rounded-[14px] p-5 mb-4">
+                      <p className="text-[13px] text-orange-600 mb-3 font-medium">
+                        Describe how you want AI to modify the letter. Be specific for best results.
+                      </p>
+                      <textarea
+                        value={aiPrompt}
+                        onChange={(e) => setAiPrompt(e.target.value)}
+                        placeholder={`e.g., "Make it more concise", "Add a paragraph about my leadership experience", "Make the tone more enthusiastic"`}
+                        className="w-full bg-white border border-orange-200 rounded-xl px-4 py-3.5 text-[14px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-gray-700 placeholder:text-gray-400 resize-none min-h-[90px] shadow-sm leading-relaxed"
+                      />
+                      <button
+                        onClick={handleAiRefine}
+                        disabled={aiLoading || !aiPrompt.trim() || !coverletterId}
+                        className="w-full mt-3 bg-orange-500 text-white py-3.5 rounded-xl text-[14px] font-semibold hover:bg-orange-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                      >
+                        {aiLoading ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                        {aiLoading ? 'Refining…' : 'Refine with AI'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -321,11 +513,12 @@ export function CoverLetters() {
         type="cover-letter"
         content={editedContent}
         metadata={{
-          userName: selectedResume?.original_filename?.replace(/\.[^/.]+$/, '') ?? 'Your Name',
+          userName: (selectedResume?.candidate_name || selectedResume?.original_filename?.replace(/\.[^/.]+$/, '')) ?? 'Your Name',
           jobTitle: selectedJd?.title,
           company: selectedJd?.company,
         }}
       />
+      <PaywallModal isOpen={showPaywall} onClose={closePaywall} usage={usage} />
     </div>
   );
 }

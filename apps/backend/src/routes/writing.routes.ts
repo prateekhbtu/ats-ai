@@ -34,6 +34,11 @@ writingRoutes.post('/analyze', llmRateLimiter(), async (c) => {
     throw new ValidationError('Text must not exceed 50000 characters');
   }
 
+  // Enforce freemium AI limit
+  const userId = c.get('userId');
+  const { enforceAiLimit } = await import('../services/ai-usage.service.js');
+  await enforceAiLimit(userId, 'writing_analyze', c.env.DATABASE_URL, c.env.FREE_TIER_LIMIT ? parseInt(c.env.FREE_TIER_LIMIT, 10) : undefined);
+
   const result = await analyzeWriting(body.text, getLlmConfig(c.env));
 
   return c.json(result, 200);

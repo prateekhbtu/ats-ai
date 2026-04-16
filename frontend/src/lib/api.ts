@@ -409,6 +409,16 @@ export const enhancerApi = {
 // ─── Cover Letter ─────────────────────────────────────────────────────────────
 
 export const coverLetterApi = {
+  list: () =>
+    request<{ cover_letters: Array<{ id: string; tone: string; created_at: string; updated_at: string }> }>(
+      '/api/cover-letter/list',
+    ),
+
+  get: (id: string) =>
+    request<{ id: string; content: string; tone: string; word_count: number }>(
+      `/api/cover-letter/${id}`,
+    ),
+
   generate: (
     resume_id: string,
     jd_id: string,
@@ -420,6 +430,24 @@ export const coverLetterApi = {
       {
         method: 'POST',
         body: JSON.stringify({ resume_id, jd_id, tone, template }),
+      },
+    ),
+
+  update: (id: string, content: string) =>
+    request<{ id: string; content: string; tone: string; word_count: number }>(
+      `/api/cover-letter/${id}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ content }),
+      },
+    ),
+
+  refine: (id: string, instruction: string) =>
+    request<{ id: string; content: string; tone: string; word_count: number }>(
+      `/api/cover-letter/${id}/refine`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ instruction }),
       },
     ),
 };
@@ -469,4 +497,17 @@ export const versionApi = {
       method: 'POST',
       body: JSON.stringify({ enhanced_resume_id, sections }),
     }),
+};
+
+// ─── AI Usage / Freemium ──────────────────────────────────────────────────────
+
+export interface UsageStatus {
+  used: number;
+  limit: number;
+  remaining: number;
+  resets_at: string | null;
+}
+
+export const usageApi = {
+  getStatus: () => request<UsageStatus>('/api/usage'),
 };

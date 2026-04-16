@@ -137,3 +137,13 @@ ALTER TABLE versions ADD COLUMN IF NOT EXISTS diff JSONB NOT NULL DEFAULT '[]';
 
 CREATE INDEX IF NOT EXISTS idx_versions_user_resume ON versions(user_id, resume_id);
 CREATE INDEX IF NOT EXISTS idx_versions_entity ON versions(entity_type, entity_id);
+
+-- AI Usage tracking for freemium limits
+CREATE TABLE IF NOT EXISTS ai_usage (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  feature VARCHAR(100) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_usage_user_time ON ai_usage(user_id, created_at DESC);

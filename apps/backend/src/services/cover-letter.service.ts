@@ -110,3 +110,99 @@ export async function getCoverLetterById(
     word_count: wordCount,
   };
 }
+
+/**
+ * Manually update cover letter content.
+ */
+export async function updateCoverLetterContent(
+  coverletterId: string,
+  content: string,
+  userId: string,
+  databaseUrl: string
+): Promise<CoverLetterResult> {
+  const cl = await queryOne<CoverLetterRow>(
+    databaseUrl,
+    `UPDATE cover_letters SET content = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3 RETURNING *`,
+    [content, coverletterId, userId]
+  );
+
+  if (!cl) {
+    throw new NotFoundError('Cover letter');
+  }
+
+  const wordCount = cl.content.split(/\s+/).filter(w => w.length > 0).length;
+
+  return {
+    id: cl.id,
+    content: cl.content,
+    tone: cl.tone,
+    template: cl.template,
+    word_count: wordCount,
+  };
+}
+
+/**
+ * AI-Refine a cover letter with user instructions.
+ */
+export async function refineCoverLetter(
+  coverletterId: string,
+  instruction: string,
+  userId: string,
+  env: Env
+): Promise<CoverLetterResult> {
+  const cl = await queryOne<CoverLetterRow>(
+    env.DATABASE_URL,
+    `SELECT * FROM cover_letters WHERE id = $1 AND user_id = $2`,
+    [coverletterId, userId]
+  );
+
+  if (!cl) {
+    throw new NotFoundError('Cover letter');
+  }
+
+  const systemPrompt = `You are an expert cover letter editor. You will receive the current cover letter content and a user instruction for how to modify it. 
+Apply the user's instruction precisely while maintaining:
+- Professional tone and structure
+- Correct grammar and flow
+- The overall letter format
+Return ONLY the modified cover letter content as plain text. Do NOT include any JSON wrapping or markdown.`;
+
+  const userPrompt = `CURRENT COVER LETTER:
+---
+${cl.content}
+---
+
+USER INSTRUCTION: ${instruction}
+
+Please modify the cover letter according to the user's instruction. Return ONLY the modified content.`;
+
+  const llmResponse = await callLlm(getLlmConfig(env), {
+    prompt: userPrompt,
+    system_instruction: systemPrompt,
+    temperature: 0.4,
+    max_tokens: 4096,
+  });
+
+  const refinedContent = llmResponse.text.trim();
+
+  // Update in DB
+  const updated = await queryOne<CoverLetterRow>(
+    env.DATABASE_URL,
+    `UPDATE cover_letters SET content = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3 RETURNING *`,
+    [refinedContent, coverletterId, userId]
+  );
+
+  if (!updated) {
+    throw new Error('Failed to save refined cover letter');
+  }
+
+  const wordCount = refinedContent.split(/\s+/).filter(w => w.length > 0).length;
+
+  return {
+    id: updated.id,
+    content: refinedContent,
+    tone: updated.tone,
+    template: updated.template,
+    word_count: wordCount,
+  };
+}

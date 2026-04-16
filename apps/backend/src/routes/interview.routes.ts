@@ -37,6 +37,11 @@ interviewRoutes.post('/generate', llmRateLimiter(), async (c) => {
   }
 
   const userId = c.get('userId');
+
+  // Enforce freemium AI limit
+  const { enforceAiLimit } = await import('../services/ai-usage.service.js');
+  await enforceAiLimit(userId, 'interview_generate', c.env.DATABASE_URL, c.env.FREE_TIER_LIMIT ? parseInt(c.env.FREE_TIER_LIMIT, 10) : undefined);
+
   const result = await generateInterviewQuestions(
     body.resume_id,
     body.jd_id,

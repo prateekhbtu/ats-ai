@@ -77,6 +77,21 @@ export function errorHandler(err: Error, c: Context<{ Bindings: Env; Variables: 
     );
   }
 
+  // AI usage limit exceeded
+  if (err.message?.startsWith('AI_LIMIT_EXCEEDED|')) {
+    const usageJson = err.message.replace('AI_LIMIT_EXCEEDED|', '');
+    let usage = {};
+    try { usage = JSON.parse(usageJson); } catch { /* ignore */ }
+    return c.json(
+      {
+        error: 'You have reached your free AI request limit. Upgrade to Pro for unlimited access.',
+        code: 'AI_LIMIT_EXCEEDED',
+        usage,
+      },
+      429
+    );
+  }
+
   return c.json(
     {
       error: 'Internal server error',

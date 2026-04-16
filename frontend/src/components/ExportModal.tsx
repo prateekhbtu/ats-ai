@@ -233,13 +233,13 @@ export function ExportModal({ isOpen, onClose, type, content, metadata }: Export
         </div>
 
         {/* Live Preview Pane */}
-        <div className="flex-1 bg-gray-100/50 p-4 sm:p-8 flex flex-col h-full overflow-hidden relative">
+        <div className="flex-1 bg-gray-100/50 p-4 sm:p-6 flex flex-col h-full overflow-hidden relative">
           <div className="absolute top-4 right-4 z-20 hidden md:block">
             <button onClick={onClose} className="p-2 bg-white/80 backdrop-blur border border-gray-200 text-gray-500 hover:text-gray-900 shadow-sm rounded-xl transition-all hover:scale-105">
               <X size={18} />
             </button>
           </div>
-          <div className="mb-4 flex items-center justify-between shrink-0">
+          <div className="mb-3 flex items-center justify-between shrink-0">
             <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
               <Expand size={16} className="text-gray-400" /> Live PDF Preview
             </h3>
@@ -247,12 +247,13 @@ export function ExportModal({ isOpen, onClose, type, content, metadata }: Export
               Letter • A4
             </span>
           </div>
-          <div className="flex-1 w-full flex justify-center overflow-y-auto rounded-lg pb-8">
-            <div className="w-full max-w-[850px] bg-white shadow-2xl shadow-gray-200/50 border border-gray-200 h-[1000px] transition-all duration-300">
+          <div className="flex-1 w-full overflow-y-auto rounded-lg">
+            <div className="w-full max-w-[850px] mx-auto bg-white shadow-2xl shadow-gray-200/50 border border-gray-200 min-h-[700px] h-fit">
               <iframe
                 ref={iframeRef}
                 srcDoc={htmlDoc}
-                className="w-full h-full border-none"
+                className="w-full border-none"
+                style={{ minHeight: '900px', height: '100%' }}
                 title="PDF Preview"
               />
             </div>
