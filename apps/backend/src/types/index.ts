@@ -17,6 +17,7 @@ export interface Env {
   ENVIRONMENT: string;
   SUPABASE_URL: string;
   SUPABASE_SECRET_KEY: string;
+  FREE_TIER_LIMIT?: string;
 }
 // ─── LLM Configuration ────────────────────────────────────────────
 export interface LlmConfig {

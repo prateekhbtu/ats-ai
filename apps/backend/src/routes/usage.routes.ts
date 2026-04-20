@@ -14,7 +14,8 @@ usageRoutes.use('/*', authMiddleware);
 // GET /api/usage – current AI usage stats
 usageRoutes.get('/', async (c) => {
   const userId = c.get('userId');
-  const status = await getUsageStatus(userId, c.env.DATABASE_URL);
+  const limit = c.env.FREE_TIER_LIMIT ? parseInt(c.env.FREE_TIER_LIMIT, 10) : undefined;
+  const status = await getUsageStatus(userId, c.env.DATABASE_URL, limit);
   return c.json(status, 200);
 });
 

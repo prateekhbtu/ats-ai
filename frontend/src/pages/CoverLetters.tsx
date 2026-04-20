@@ -345,8 +345,8 @@ export function CoverLetters() {
               <div className="flex-1 flex flex-col">
                 {/* Version switcher + tab bar */}
                 {clHistory.length > 1 && (
-                  <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Letter:</span>
+                  <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider shrink-0">Letter History:</span>
                     <select
                       value={coverletterId || ''}
                       onChange={async (e) => {

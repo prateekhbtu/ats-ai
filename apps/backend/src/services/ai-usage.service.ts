@@ -6,7 +6,6 @@
 
 import { query, execute } from './db.service.js';
 
-const FREE_TIER_LIMIT = 15;
 const WINDOW_HOURS = 24;
 
 export interface UsageStatus {
@@ -21,7 +20,8 @@ export interface UsageStatus {
  */
 export async function getUsageStatus(
   userId: string,
-  databaseUrl: string
+  databaseUrl: string,
+  limit: number = 5
 ): Promise<UsageStatus> {
   const windowStart = new Date(Date.now() - WINDOW_HOURS * 60 * 60 * 1000).toISOString();
 
@@ -32,11 +32,11 @@ export async function getUsageStatus(
   );
 
   const used = rows.length;
-  const remaining = Math.max(0, FREE_TIER_LIMIT - used);
+  const remaining = Math.max(0, limit - used);
 
   // The oldest request determines when the window "resets" (i.e. that slot becomes free)
   let resetsAt: string | null = null;
-  if (used >= FREE_TIER_LIMIT && rows.length > 0) {
+  if (used >= limit && rows.length > 0) {
     const oldest = new Date(rows[0].created_at);
     oldest.setHours(oldest.getHours() + WINDOW_HOURS);
     resetsAt = oldest.toISOString();
@@ -44,7 +44,7 @@ export async function getUsageStatus(
 
   return {
     used,
-    limit: FREE_TIER_LIMIT,
+    limit,
     remaining,
     resets_at: resetsAt,
   };
@@ -55,9 +55,10 @@ export async function getUsageStatus(
  */
 export async function canUseAi(
   userId: string,
-  databaseUrl: string
+  databaseUrl: string,
+  limit: number = 5
 ): Promise<boolean> {
-  const status = await getUsageStatus(userId, databaseUrl);
+  const status = await getUsageStatus(userId, databaseUrl, limit);
   return status.remaining > 0;
 }
 
@@ -83,9 +84,10 @@ export async function recordAiUsage(
 export async function enforceAiLimit(
   userId: string,
   feature: string,
-  databaseUrl: string
+  databaseUrl: string,
+  limit: number = 5
 ): Promise<UsageStatus> {
-  const status = await getUsageStatus(userId, databaseUrl);
+  const status = await getUsageStatus(userId, databaseUrl, limit);
 
   if (status.remaining <= 0) {
     const err = new Error(

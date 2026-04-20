@@ -184,8 +184,8 @@ export function ExportModal({ isOpen, onClose, type, content, metadata }: Export
       <div className="relative w-full max-w-6xl h-[90vh] bg-gray-50 rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row border border-gray-200">
         
         {/* Sidebar Controls */}
-        <div className="w-full md:w-80 bg-white border-r border-gray-200 flex flex-col pt-6 pb-6 shadow-sm z-10">
-          <div className="px-6 flex items-center justify-between mb-8">
+        <div className="w-full md:w-80 bg-white border-r border-gray-200 flex flex-col pt-6 pb-6 shadow-sm z-10 shrink-0 overflow-y-auto">
+          <div className="px-6 flex items-center justify-between mb-8 shrink-0">
             <h2 className="text-xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
               <Download className="text-orange-600" size={20} /> Export {type === 'resume' ? 'Resume' : 'Cover Letter'}
             </h2>
@@ -219,7 +219,7 @@ export function ExportModal({ isOpen, onClose, type, content, metadata }: Export
             </div>
           </div>
 
-          <div className="mt-auto px-6 pt-6 border-t border-gray-100">
+          <div className="mt-auto px-6 pt-6 border-t border-gray-100 shrink-0">
             <button
               onClick={handlePrint}
               className="w-full bg-[#0A0A0A] text-white py-3.5 rounded-xl text-[14px] font-semibold hover:bg-black/80 transition-shadow shadow-[0_4px_14px_0_rgba(0,0,0,0.25)] flex items-center justify-center gap-2"
@@ -233,13 +233,13 @@ export function ExportModal({ isOpen, onClose, type, content, metadata }: Export
         </div>
 
         {/* Live Preview Pane */}
-        <div className="flex-1 bg-gray-100/50 p-4 sm:p-6 flex flex-col h-full overflow-hidden relative">
+        <div className="flex-1 bg-gray-100/50 flex flex-col h-full overflow-hidden relative border-t md:border-t-0 border-gray-200">
           <div className="absolute top-4 right-4 z-20 hidden md:block">
             <button onClick={onClose} className="p-2 bg-white/80 backdrop-blur border border-gray-200 text-gray-500 hover:text-gray-900 shadow-sm rounded-xl transition-all hover:scale-105">
               <X size={18} />
             </button>
           </div>
-          <div className="mb-3 flex items-center justify-between shrink-0">
+          <div className="p-4 sm:p-6 mb-2 flex items-center justify-between shrink-0">
             <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
               <Expand size={16} className="text-gray-400" /> Live PDF Preview
             </h3>
@@ -247,13 +247,12 @@ export function ExportModal({ isOpen, onClose, type, content, metadata }: Export
               Letter • A4
             </span>
           </div>
-          <div className="flex-1 w-full overflow-y-auto rounded-lg">
-            <div className="w-full max-w-[850px] mx-auto bg-white shadow-2xl shadow-gray-200/50 border border-gray-200 min-h-[700px] h-fit">
+          <div className="flex-1 w-full overflow-hidden px-4 sm:px-6 pb-6">
+            <div className="w-full max-w-[850px] mx-auto bg-white shadow-2xl shadow-gray-200/50 border border-gray-200 h-full overflow-hidden rounded-lg">
               <iframe
                 ref={iframeRef}
                 srcDoc={htmlDoc}
-                className="w-full border-none"
-                style={{ minHeight: '900px', height: '100%' }}
+                className="w-full h-full border-none"
                 title="PDF Preview"
               />
             </div>

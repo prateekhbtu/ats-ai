@@ -697,18 +697,13 @@ export function Editor() {
 
   async function handleSaveEdit(updatedSections: ResumeSections) {
     if (!enhanceResult) return;
-    setSaving(true);
-    setError(null);
     try {
-      const result = await enhancerApi.manualEdit(enhanceResult.id, updatedSections);
-      setEnhanceResult(result);
+      setEnhanceResult({ ...enhanceResult, enhanced_sections: updatedSections });
       setEditingSection(null);
-      setSavedMsg('Changes saved as new version!');
+      setSavedMsg('Changes applied locally. Click "Save Version" to store them.');
       setTimeout(() => setSavedMsg(null), 3000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Save failed.');
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -882,7 +877,7 @@ export function Editor() {
                 {leftView === 'original' ? (
                   // Original view
                   pdfUrl ? (
-                    <div className="flex-1 w-full bg-white border border-gray-200 shadow-xl overflow-hidden rounded-md flex flex-col min-h-[500px]">
+                    <div className="flex-1 w-full bg-white border border-gray-200 shadow-xl overflow-hidden rounded-md flex flex-col min-h-[400px] lg:min-h-[500px]">
                       <iframe src={`${pdfUrl}#toolbar=0&navpanes=0`} className="flex-1 w-full h-full border-none m-0 p-0" title="Original Resume PDF" />
                     </div>
                   ) : (
@@ -937,9 +932,9 @@ export function Editor() {
             ) : enhanceResult ? (
               <div className="w-full max-w-[700px]">
                 {/* Header with version dropdown */}
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <span className="text-[10px] font-bold text-orange-500 uppercase tracking-widest">Enhanced by AI</span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {versionList.length > 1 && (
                       <select
                         value={enhanceResult.version}
@@ -948,7 +943,7 @@ export function Editor() {
                           if (v) handleSwitchVersion(v.id);
                         }}
                         disabled={loadingVersions}
-                        className="bg-gray-50 border border-gray-200 text-gray-700 text-[11px] font-bold rounded-lg px-2 py-1 pr-6 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                        className="bg-gray-50 border border-gray-200 text-gray-700 text-[11px] font-bold rounded-lg px-2 py-1 pr-6 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500/20 shadow-sm max-w-[150px] sm:max-w-none text-ellipsis"
                         style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.25rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.2em 1.2em' }}
                       >
                         {versionList.map(v => (
