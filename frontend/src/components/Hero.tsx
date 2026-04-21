@@ -17,6 +17,151 @@ export function Hero() {
       {/* Glow blob */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] bg-orange-500/5 rounded-full blur-3xl pointer-events-none" />
 
+      {/* Stashed papers — LEFT side */}
+      <div className="hidden md:block absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none select-none z-0">
+        {/* Back paper */}
+        <motion.div
+          initial={{ opacity: 0, x: -60, rotate: -18 }}
+          animate={{ opacity: 1, x: 0, rotate: -18 }}
+          transition={{ duration: 0.9, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          className="absolute -left-24 top-4 w-52 h-72 bg-white rounded-md shadow-xl border border-gray-200"
+          style={{ transformOrigin: 'center' }}
+        >
+          <motion.div
+            animate={{ rotate: [-18, -16, -18] }}
+            transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+            className="w-full h-full p-4 flex flex-col gap-2"
+          >
+            <div className="w-3/4 h-2 bg-gray-200 rounded" />
+            <div className="w-1/2 h-2 bg-gray-200 rounded" />
+            <div className="w-full h-1.5 bg-gray-100 rounded mt-3" />
+            <div className="w-full h-1.5 bg-gray-100 rounded" />
+            <div className="w-4/5 h-1.5 bg-gray-100 rounded" />
+            <div className="w-2/3 h-1.5 bg-gray-100 rounded" />
+          </motion.div>
+        </motion.div>
+
+        {/* Middle paper */}
+        <motion.div
+          initial={{ opacity: 0, x: -60, rotate: -8 }}
+          animate={{ opacity: 1, x: 0, rotate: -8 }}
+          transition={{ duration: 0.9, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
+          className="absolute -left-16 top-8 w-52 h-72 bg-white rounded-md shadow-xl border border-gray-200"
+        >
+          <motion.div
+            animate={{ rotate: [-8, -10, -8] }}
+            transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut', delay: 0.3 }}
+            className="w-full h-full p-4 flex flex-col gap-2"
+          >
+            <div className="w-2/3 h-2 bg-gray-300 rounded" />
+            <div className="w-2/5 h-1.5 bg-orange-300 rounded" />
+            <div className="w-full h-1.5 bg-gray-100 rounded mt-3" />
+            <div className="w-full h-1.5 bg-gray-100 rounded" />
+            <div className="w-5/6 h-1.5 bg-gray-100 rounded" />
+            <div className="w-full h-1.5 bg-gray-100 rounded mt-2" />
+            <div className="w-3/4 h-1.5 bg-gray-100 rounded" />
+          </motion.div>
+        </motion.div>
+
+        {/* Front paper */}
+        <motion.div
+          initial={{ opacity: 0, x: -60, rotate: 4 }}
+          animate={{ opacity: 1, x: 0, rotate: 4 }}
+          transition={{ duration: 0.9, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+          className="absolute -left-8 top-16 w-52 h-72 bg-white rounded-md shadow-2xl border border-gray-200"
+        >
+          <motion.div
+            animate={{ rotate: [4, 2, 4], y: [0, -4, 0] }}
+            transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
+            className="w-full h-full p-4 flex flex-col gap-2"
+          >
+            <div className="w-2/3 h-3 bg-gray-800 rounded" />
+            <div className="w-1/3 h-1.5 bg-orange-400 rounded" />
+            <div className="w-full h-1.5 bg-gray-100 rounded mt-3" />
+            <div className="w-full h-1.5 bg-gray-100 rounded" />
+            <div className="w-4/5 h-1.5 bg-gray-100 rounded" />
+            <div className="w-1/4 h-2 bg-gray-700 rounded mt-3" />
+            <div className="w-full h-1.5 bg-gray-100 rounded" />
+            <div className="w-5/6 h-1.5 bg-gray-100 rounded" />
+          </motion.div>
+        </motion.div>
+      </div>
+
+      {/* Stashed papers — RIGHT side */}
+      <div className="hidden md:block absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none select-none z-0">
+        {/* Back paper */}
+        <motion.div
+          initial={{ opacity: 0, x: 60, rotate: 18 }}
+          animate={{ opacity: 1, x: 0, rotate: 18 }}
+          transition={{ duration: 0.9, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          className="absolute -right-24 top-4 w-52 h-72 bg-white rounded-md shadow-xl border border-gray-200"
+        >
+          <motion.div
+            animate={{ rotate: [18, 16, 18] }}
+            transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+            className="w-full h-full p-4 flex flex-col gap-2"
+          >
+            <div className="w-3/4 h-2 bg-gray-200 rounded" />
+            <div className="w-1/2 h-2 bg-gray-200 rounded" />
+            <div className="w-full h-1.5 bg-gray-100 rounded mt-3" />
+            <div className="w-full h-1.5 bg-gray-100 rounded" />
+            <div className="w-4/5 h-1.5 bg-gray-100 rounded" />
+            <div className="w-2/3 h-1.5 bg-gray-100 rounded" />
+          </motion.div>
+        </motion.div>
+
+        {/* Middle paper */}
+        <motion.div
+          initial={{ opacity: 0, x: 60, rotate: 8 }}
+          animate={{ opacity: 1, x: 0, rotate: 8 }}
+          transition={{ duration: 0.9, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
+          className="absolute -right-16 top-8 w-52 h-72 bg-white rounded-md shadow-xl border border-gray-200"
+        >
+          <motion.div
+            animate={{ rotate: [8, 10, 8] }}
+            transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut', delay: 0.3 }}
+            className="w-full h-full p-4 flex flex-col gap-2"
+          >
+            <div className="w-2/3 h-2 bg-gray-300 rounded" />
+            <div className="w-2/5 h-1.5 bg-orange-300 rounded" />
+            <div className="w-full h-1.5 bg-gray-100 rounded mt-3" />
+            <div className="w-full h-1.5 bg-gray-100 rounded" />
+            <div className="w-5/6 h-1.5 bg-gray-100 rounded" />
+            <div className="w-full h-1.5 bg-gray-100 rounded mt-2" />
+            <div className="w-3/4 h-1.5 bg-gray-100 rounded" />
+          </motion.div>
+        </motion.div>
+
+        {/* Front paper */}
+        <motion.div
+          initial={{ opacity: 0, x: 60, rotate: -4 }}
+          animate={{ opacity: 1, x: 0, rotate: -4 }}
+          transition={{ duration: 0.9, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+          className="absolute -right-8 top-16 w-52 h-72 bg-white rounded-md shadow-2xl border border-gray-200"
+        >
+          <motion.div
+            animate={{ rotate: [-4, -2, -4], y: [0, -4, 0] }}
+            transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut', delay: 0.2 }}
+            className="w-full h-full p-4 flex flex-col gap-2"
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-8 h-8 rounded-full bg-orange-400" />
+              <div className="flex-1">
+                <div className="w-3/4 h-2 bg-gray-800 rounded mb-1" />
+                <div className="w-1/2 h-1.5 bg-gray-300 rounded" />
+              </div>
+            </div>
+            <div className="w-full h-1.5 bg-gray-100 rounded mt-2" />
+            <div className="w-full h-1.5 bg-gray-100 rounded" />
+            <div className="w-4/5 h-1.5 bg-gray-100 rounded" />
+            <div className="w-1/4 h-2 bg-gray-700 rounded mt-3" />
+            <div className="w-full h-1.5 bg-gray-100 rounded" />
+            <div className="w-5/6 h-1.5 bg-gray-100 rounded" />
+            <div className="w-2/3 h-1.5 bg-gray-100 rounded" />
+          </motion.div>
+        </motion.div>
+      </div>
+
       <div className="relative z-10 max-w-4xl mx-auto text-center">
         {/* Badge */}
         <motion.div
@@ -33,7 +178,7 @@ export function Hero() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-          className="text-5xl sm:text-6xl md:text-7xl font-bold tracking-tight text-gray-900 leading-[1.08] mb-6"
+          className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-gray-900 leading-[1.15] sm:leading-[1.08] mb-6"
         >
           Get Past the Bots,{' '}
           <span className="relative inline-block">

@@ -285,7 +285,7 @@ export function Dashboard() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.06 }}
-                  className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors group"
+                  className="px-4 sm:px-6 py-4 flex items-center justify-between gap-3 hover:bg-gray-50 transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 flex-1">
                     <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
@@ -330,17 +330,19 @@ export function Dashboard() {
                       </button>
                     )}
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-0.5 sm:gap-1">
                       <button
                         onClick={() => handleViewVersions(resume.id)}
-                        className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"
+                        aria-label="View versions"
+                        className="w-10 h-10 sm:w-9 sm:h-9 flex items-center justify-center text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"
                         title="View versions"
                       >
                         <Eye size={16} />
                       </button>
                       <button
                         onClick={() => navigate(`/editor?resume=${resume.id}`)}
-                        className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                        aria-label="Enhance resume"
+                        className="w-10 h-10 sm:w-9 sm:h-9 flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
                         title="Enhance resume"
                       >
                         <Sparkles size={16} />
@@ -348,7 +350,8 @@ export function Dashboard() {
                       <button
                         onClick={() => handleRemove(resume.id)}
                         disabled={removing === resume.id}
-                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                        aria-label="Delete resume"
+                        className="w-10 h-10 sm:w-9 sm:h-9 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                         title="Delete"
                       >
                         {removing === resume.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}

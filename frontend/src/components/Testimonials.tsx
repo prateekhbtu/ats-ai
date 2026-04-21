@@ -97,7 +97,7 @@ export function Testimonials() {
 
 function ReviewCard({ review }: { review: typeof reviews[0] }) {
   return (
-    <div className="w-[400px] shrink-0 break-inside-avoid bg-[#FAFAFA] border border-gray-100 p-8 rounded-3xl hover:shadow-lg transition-shadow duration-300">
+    <div className="w-[85vw] sm:w-[400px] shrink-0 break-inside-avoid bg-[#FAFAFA] border border-gray-100 p-6 sm:p-8 rounded-3xl hover:shadow-lg transition-shadow duration-300">
       <div className="flex gap-1 mb-4 text-orange-500">
         {[...Array(5)].map((_, j) => (
           <svg key={j} className="w-4 h-4 fill-current" viewBox="0 0 20 20">

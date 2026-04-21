@@ -106,7 +106,7 @@ export function Pricing() {
               transition={{ delay: i * 0.1, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
               className={`relative rounded-3xl p-8 border flex flex-col ${
                 plan.highlighted
-                  ? 'bg-white text-gray-900 border-white shadow-2xl shadow-white/10 scale-[1.03]'
+                  ? 'bg-white text-gray-900 border-white shadow-2xl shadow-white/10 md:scale-[1.03]'
                   : 'bg-white/5 text-white border-white/10 hover:bg-white/10 transition-colors'
               }`}
             >

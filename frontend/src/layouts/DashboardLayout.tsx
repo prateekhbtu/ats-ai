@@ -146,7 +146,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         <div className="lg:hidden sticky top-0 z-10 h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shadow-sm">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="w-9 h-9 flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+            aria-label="Open menu"
+            className="w-11 h-11 flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 transition-colors -ml-1 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
           >
             <Menu size={20} />
           </button>
@@ -167,7 +168,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <div className="flex-1 p-6 md:p-8 lg:p-12 max-w-screen-xl">
+        <div className="flex-1 p-4 sm:p-6 md:p-8 lg:p-12 max-w-screen-xl w-full">
           {children}
         </div>
       </main>

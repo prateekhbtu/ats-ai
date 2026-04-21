@@ -13,7 +13,7 @@ const coverLetterRoutes = new Hono<{ Bindings: Env; Variables: AppVariables }>()
 
 coverLetterRoutes.use('/*', authMiddleware);
 
-const VALID_TONES: CoverLetterTone[] = ['formal', 'conversational', 'assertive'];
+const VALID_TONES: CoverLetterTone[] = ['formal', 'conversational', 'assertive', 'enthusiastic'];
 
 // GET /api/cover-letter/list – All cover letters for the current user
 coverLetterRoutes.get('/list', async (c) => {

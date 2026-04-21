@@ -162,7 +162,7 @@ export function Showcase() {
                   transition={{ duration: 0.4 }}
                   className="flex flex-col h-full"
                 >
-                  <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 pb-4 border-b border-gray-100">
                     <div className="flex items-center gap-3">
                       <FileText className="text-orange-500" />
                       <h3 className="font-semibold">Tailored Resume Generation</h3>
@@ -173,7 +173,7 @@ export function Showcase() {
                     </div>
                   </div>
                   
-                  <div className="flex-1 grid grid-cols-2 gap-8">
+                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                     {/* Before */}
                     <div className="opacity-50 pointer-events-none">
                       <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Original Bullet</div>

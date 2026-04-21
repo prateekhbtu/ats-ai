@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS cover_letters (
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   resume_id UUID NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
   jd_id UUID NOT NULL REFERENCES job_descriptions(id) ON DELETE CASCADE,
-  tone VARCHAR(50) NOT NULL CHECK (tone IN ('formal', 'conversational', 'assertive')),
+  tone VARCHAR(50) NOT NULL CHECK (tone IN ('formal', 'conversational', 'assertive', 'enthusiastic')),
   template VARCHAR(100) DEFAULT 'standard',
   content TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),

@@ -8,12 +8,13 @@ import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   resumeApi, jdApi, analysisApi, enhancerApi, versionApi,
   type UniScoreResult, type EnhancedResumeResult, type ResumeSections,
-  type ResumeDetail, type Version,
+  type ResumeDetail, type Version, type DiffResult,
 } from '../lib/api';
 import { resumeStore, jdStore, type ResumeRecord, type JdRecord } from '../lib/storage';
 import { ExportModal } from '../components/ExportModal';
 import { PaywallModal } from '../components/PaywallModal';
 import { useAiUsage } from '../hooks/useAiUsage';
+import { useToast } from '../contexts/ToastContext';
 
 // ─── Resume Preview Renderer ────────────────────────────────────────────────
 
@@ -526,48 +527,79 @@ export function Editor() {
 
   // AI usage / paywall
   const { usage, showPaywall, handleAiError, closePaywall, refreshUsage } = useAiUsage();
+  const { toast } = useToast();
 
-  // Load resources from both localStorage AND API
+  // Load resources from API (server is source of truth) with localStorage only as a transient
+  // display cache while the fetch is in flight.
   useEffect(() => {
-    async function loadResources() {
-      // Load from localStorage first for instant display
-      let r = resumeStore.list();
-      const j = jdStore.list();
-      setJobs(j);
+    let cancelled = false;
 
-      // Also fetch from API to get latest data
+    async function loadResources() {
+      // Optimistic paint from localStorage
+      const cachedResumes = resumeStore.list();
+      const cachedJds = jdStore.list();
+      if (cachedResumes.length) setResumes(cachedResumes);
+      if (cachedJds.length) setJobs(cachedJds);
+
+      let resRes: Awaited<ReturnType<typeof resumeApi.list>> | null = null;
+      let jdRes: Awaited<ReturnType<typeof jdApi.list>> | null = null;
+      let apiFailed = false;
+
       try {
-        const [resRes, jdRes] = await Promise.all([
-          resumeApi.list(),
-          jdApi.list()
-        ]);
-        
-        // Merge resumes with local data
-        r = resRes.resumes.map(ar => {
-          const local = r.find(lr => lr.id === ar.id);
+        [resRes, jdRes] = await Promise.all([resumeApi.list(), jdApi.list()]);
+      } catch (err: unknown) {
+        apiFailed = true;
+        const msg = err instanceof Error ? err.message : 'Could not load your resumes and jobs.';
+        if (!cancelled) toast(msg, 'error');
+      }
+
+      if (cancelled) return;
+
+      // Resumes: server is truth
+      if (resRes) {
+        const serverResumes: ResumeRecord[] = resRes.resumes.map((ar) => {
+          const local = cachedResumes.find((lr) => lr.id === ar.id);
           return {
             id: ar.id,
             original_filename: ar.original_filename,
+            candidate_name: ar.candidate_name,
+            file_url: ar.file_url,
             created_at: ar.created_at,
             ats_score: local?.ats_score,
           };
         });
-        
-        // Sync JDs
-        const validJds = jdRes.jds || [];
-        jdStore.setAll(validJds);
-        setJobs(validJds);
-        
-        if (validJds.length > 0 && !j.length) setJdId(validJds[0].id);
-      } catch {
-        // Offline / API error — use localStorage only
+        setResumes(serverResumes);
+
+        if (serverResumes.length === 0) {
+          toast('Upload a resume to get started.', 'info');
+          navigate('/upload');
+          return;
+        }
+
+        const preselectedExists = preselectedResumeId && serverResumes.some(r => r.id === preselectedResumeId);
+        if (!preselectedExists) setResumeId(serverResumes[0].id);
+      } else if (!apiFailed) {
+        // API returned nothing unexpectedly
+        setResumes([]);
       }
 
-      setResumes(r);
-      if (!preselectedResumeId && r.length > 0) setResumeId(r[0].id);
-      if (j.length > 0 && !jdId) setJdId(j[0].id);
+      // JDs: server is truth
+      if (jdRes) {
+        const serverJds = jdRes.jds || [];
+        jdStore.setAll(serverJds);
+        setJobs(serverJds);
+
+        if (serverJds.length === 0) {
+          toast('Save a job description to continue.', 'info');
+          navigate('/jobs');
+          return;
+        }
+        setJdId(serverJds[0].id);
+      }
     }
+
     loadResources();
+    return () => { cancelled = true; };
   }, []);
 
   // Load original resume when selection changes
@@ -633,14 +665,17 @@ export function Editor() {
     setError(null);
     try {
       const detail = await versionApi.getDetail(versionId);
-      if (detail.content_snapshot?.enhanced_sections) {
-        setEnhanceResult(prev => prev ? {
-          ...prev,
-          enhanced_sections: detail.content_snapshot.enhanced_sections,
-          version: detail.version_number,
-          diff: detail.content_snapshot.diff || prev.diff,
-        } : prev);
+      const snap = detail.content_snapshot as { sections?: ResumeSections; enhanced_sections?: ResumeSections; diff?: DiffResult[] } | null;
+      const sections = snap?.sections ?? snap?.enhanced_sections;
+      if (!sections) {
+        throw new Error('Version snapshot is empty or malformed.');
       }
+      setEnhanceResult(prev => prev ? {
+        ...prev,
+        enhanced_sections: sections,
+        version: detail.version_number,
+        diff: detail.diff as DiffResult[] | undefined ?? snap?.diff ?? prev.diff,
+      } : prev);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load version.');
     } finally {
@@ -727,36 +762,39 @@ export function Editor() {
   return (
     <div className="h-screen flex flex-col bg-[#FAFAFA] overflow-hidden font-sans">
       {/* Header */}
-      <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 sm:px-6 shrink-0 z-10 shadow-sm">
-        <div className="flex items-center gap-3">
+      <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between gap-2 px-3 sm:px-6 shrink-0 z-10 shadow-sm">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             onClick={() => navigate(-1)}
-            className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-gray-100 text-gray-500 transition-colors border border-gray-200"
+            aria-label="Back"
+            className="w-9 h-9 shrink-0 flex items-center justify-center rounded-md hover:bg-gray-100 text-gray-500 transition-colors border border-gray-200"
           >
             <ArrowLeft size={16} />
           </button>
-          <div className="h-4 w-px bg-gray-200" />
-          <Link to="/dashboard" className="text-xs text-gray-400 hover:text-gray-700 transition-colors">Dashboard</Link>
-          <span className="text-gray-300">/</span>
-          <h1 className="text-sm font-semibold text-gray-900">Resume Enhancer</h1>
+          <div className="h-4 w-px bg-gray-200 hidden sm:block" />
+          <Link to="/dashboard" className="hidden sm:inline text-xs text-gray-400 hover:text-gray-700 transition-colors">Dashboard</Link>
+          <span className="hidden sm:inline text-gray-300">/</span>
+          <h1 className="text-sm font-semibold text-gray-900 truncate">Resume Enhancer</h1>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {enhanceResult && (
             <>
               <button
                 onClick={handleSaveVersion}
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-700 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                aria-label="Save version"
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs font-medium text-gray-700 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
                 {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                Save Version
+                <span className="hidden sm:inline">Save Version</span>
               </button>
               <button
                 onClick={handleExportPdf}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-[#0A0A0A] rounded-lg hover:bg-black/80 transition-colors"
+                aria-label="Export PDF"
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs font-medium text-white bg-[#0A0A0A] rounded-lg hover:bg-black/80 transition-colors"
               >
-                <Download size={13} /> Export PDF
+                <Download size={13} /> <span className="hidden sm:inline">Export PDF</span>
               </button>
             </>
           )}
@@ -764,47 +802,51 @@ export function Editor() {
       </header>
 
       {/* Selector Bar */}
-      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-2.5 flex items-center gap-3 flex-wrap">
-        <span className="text-xs font-medium text-gray-500">Resume:</span>
-        <div className="relative">
-          <select
-            value={resumeId}
-            onChange={(e) => {
-              setResumeId(e.target.value);
-              setEnhanceResult(null);
-              setScoreResult(null);
-            }}
-            className="appearance-none pl-3 pr-8 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-700 focus:outline-none focus:border-orange-400 cursor-pointer"
-          >
-            {resumes.length === 0 && <option value="">No resumes</option>}
-            {resumes.map((r) => <option key={r.id} value={r.id}>{r.original_filename}</option>)}
-          </select>
-          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-2.5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 sm:flex-wrap">
+        <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-initial">
+          <span className="text-xs font-medium text-gray-500 shrink-0">Resume:</span>
+          <div className="relative flex-1 sm:flex-initial min-w-0">
+            <select
+              value={resumeId}
+              onChange={(e) => {
+                setResumeId(e.target.value);
+                setEnhanceResult(null);
+                setScoreResult(null);
+              }}
+              className="w-full max-w-full appearance-none pl-3 pr-8 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-700 focus:outline-none focus:border-orange-400 cursor-pointer truncate"
+            >
+              {resumes.length === 0 && <option value="">No resumes</option>}
+              {resumes.map((r) => <option key={r.id} value={r.id}>{r.original_filename}</option>)}
+            </select>
+            <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          </div>
         </div>
 
-        <span className="text-gray-300">+</span>
+        <span className="hidden sm:inline text-gray-300">+</span>
 
-        <span className="text-xs font-medium text-gray-500">Job Description:</span>
-        <div className="relative">
-          <select
-            value={jdId}
-            onChange={(e) => {
-              setJdId(e.target.value);
-              setEnhanceResult(null);
-              setScoreResult(null);
-            }}
-            className="appearance-none pl-3 pr-8 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-700 focus:outline-none focus:border-orange-400 cursor-pointer"
-          >
-            {jobs.length === 0 && <option value="">No jobs — save one first</option>}
-            {jobs.map((j) => <option key={j.id} value={j.id}>{j.title} — {j.company}</option>)}
-          </select>
-          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-initial">
+          <span className="text-xs font-medium text-gray-500 shrink-0">Job:</span>
+          <div className="relative flex-1 sm:flex-initial min-w-0">
+            <select
+              value={jdId}
+              onChange={(e) => {
+                setJdId(e.target.value);
+                setEnhanceResult(null);
+                setScoreResult(null);
+              }}
+              className="w-full max-w-full appearance-none pl-3 pr-8 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-700 focus:outline-none focus:border-orange-400 cursor-pointer truncate"
+            >
+              {jobs.length === 0 && <option value="">No jobs — save one first</option>}
+              {jobs.map((j) => <option key={j.id} value={j.id}>{j.title} — {j.company}</option>)}
+            </select>
+            <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          </div>
         </div>
 
         <button
           onClick={handleRun}
           disabled={enhancing || !resumeId || !jdId}
-          className="ml-auto inline-flex items-center gap-2 bg-[#0A0A0A] text-white px-4 py-2 rounded-lg text-xs font-medium hover:bg-black/80 transition-colors shadow-md disabled:opacity-50"
+          className="sm:ml-auto w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#0A0A0A] text-white px-4 py-2 rounded-lg text-xs font-medium hover:bg-black/80 transition-colors shadow-md disabled:opacity-50"
         >
           {enhancing ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
           {enhancing ? 'Enhancing…' : 'Run Enhancement'}
@@ -935,7 +977,7 @@ export function Editor() {
                 <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <span className="text-[10px] font-bold text-orange-500 uppercase tracking-widest">Enhanced by AI</span>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {versionList.length > 1 && (
+                    {versionList.length > 0 && (
                       <select
                         value={enhanceResult.version}
                         onChange={(e) => {

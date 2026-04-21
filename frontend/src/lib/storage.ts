@@ -95,6 +95,10 @@ export const resumeStore = {
       resumeStore.list().filter((r) => r.id !== id),
     );
   },
+
+  setAll: (records: ResumeRecord[]) => {
+    save(scopedKey('resumes'), records);
+  },
 };
 
 // ─── Job Descriptions ─────────────────────────────────────────────────────────

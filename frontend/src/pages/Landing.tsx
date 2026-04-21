@@ -12,7 +12,7 @@ import { Footer } from '../components/Footer';
 
 export function Landing() {
   return (
-    <div className="min-h-screen bg-[#FAFAFA] text-[#0A0A0A] font-sans">
+    <div className="min-h-screen bg-[#FAFAFA] text-[#0A0A0A] font-sans overflow-x-hidden">
       <Header />
       <main>
         <Hero />

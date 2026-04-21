@@ -115,7 +115,7 @@ export function Upload() {
                 onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={handleDrop}
-                className={`bg-white rounded-3xl border-2 border-dashed p-16 text-center transition-all cursor-pointer shadow-xl shadow-black/5 ${
+                className={`bg-white rounded-3xl border-2 border-dashed p-8 sm:p-16 text-center transition-all cursor-pointer shadow-xl shadow-black/5 ${
                   dragging
                     ? 'border-orange-400 bg-orange-50 scale-[1.02]'
                     : 'border-gray-300 hover:border-orange-300 hover:bg-orange-50/30'
@@ -147,7 +147,7 @@ export function Upload() {
               key="scoring"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-3xl p-16 text-center shadow-xl shadow-black/5 border border-gray-200"
+              className="bg-white rounded-3xl p-8 sm:p-16 text-center shadow-xl shadow-black/5 border border-gray-200"
             >
               <div className="w-20 h-20 rounded-3xl bg-orange-50 flex items-center justify-center mx-auto mb-6">
                 <Sparkles size={36} className="text-orange-500 animate-pulse" />

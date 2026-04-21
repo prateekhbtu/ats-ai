@@ -1,15 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft, FileText, Sparkles, Loader2, Download,
-  AlertCircle, Edit3, CheckCircle2, RefreshCw, Wand2, Save,
+  AlertCircle, Edit3, CheckCircle2, RefreshCw, Wand2, Save, ArrowDown,
 } from 'lucide-react';
 import { resumeStore, jdStore, type ResumeRecord, type JdRecord } from '../lib/storage';
-import { coverLetterApi } from '../lib/api';
+import { coverLetterApi, resumeApi, jdApi } from '../lib/api';
 import { ExportModal } from '../components/ExportModal';
 import { PaywallModal } from '../components/PaywallModal';
 import { useAiUsage } from '../hooks/useAiUsage';
+import { useToast } from '../contexts/ToastContext';
 
 type Tone = 'formal' | 'conversational' | 'assertive' | 'enthusiastic';
 
@@ -55,22 +56,79 @@ export function CoverLetters() {
 
   // AI usage / paywall
   const { usage, showPaywall, handleAiError, closePaywall, refreshUsage } = useAiUsage();
+  const { toast } = useToast();
 
   // Cover letter history
   const [clHistory, setClHistory] = useState<Array<{ id: string; tone: string; created_at: string; updated_at: string }>>([]);
   const [loadingCl, setLoadingCl] = useState(false);
 
+  // Ref to the preview pane (for mobile auto-scroll)
+  const previewRef = useRef<HTMLDivElement>(null);
+
   const selectedResume = resumes.find(r => r.id === resumeId);
   const selectedJd = jobs.find(j => j.id === jdId);
 
-  useEffect(() => {
-    const rList = resumeStore.list();
-    setResumes(rList);
-    if (rList.length > 0) setResumeId(rList[0].id);
+  function scrollToPreview() {
+    if (window.matchMedia('(max-width: 1023px)').matches) {
+      previewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
 
-    const jList = jdStore.list();
-    setJobs(jList);
-    if (jList.length > 0) setJdId(jList[0].id);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadResources() {
+      // Optimistic paint
+      const cachedResumes = resumeStore.list();
+      const cachedJds = jdStore.list();
+      if (cachedResumes.length) setResumes(cachedResumes);
+      if (cachedJds.length) setJobs(cachedJds);
+
+      let resRes: Awaited<ReturnType<typeof resumeApi.list>> | null = null;
+      let jdRes: Awaited<ReturnType<typeof jdApi.list>> | null = null;
+
+      try {
+        [resRes, jdRes] = await Promise.all([resumeApi.list(), jdApi.list()]);
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : 'Could not load your resumes and jobs.';
+          toast(msg, 'error');
+        }
+        return;
+      }
+
+      if (cancelled) return;
+
+      const serverResumes = resRes.resumes.map((ar) => ({
+        id: ar.id,
+        original_filename: ar.original_filename,
+        candidate_name: ar.candidate_name,
+        file_url: ar.file_url,
+        created_at: ar.created_at,
+      })) as ResumeRecord[];
+      setResumes(serverResumes);
+
+      if (serverResumes.length === 0) {
+        toast('Upload a resume to draft a cover letter.', 'info');
+        navigate('/upload');
+        return;
+      }
+      setResumeId(serverResumes[0].id);
+
+      const serverJds = jdRes.jds || [];
+      jdStore.setAll(serverJds);
+      setJobs(serverJds);
+
+      if (serverJds.length === 0) {
+        toast('Save a job description to draft a cover letter.', 'info');
+        navigate('/jobs');
+        return;
+      }
+      setJdId(serverJds[0].id);
+    }
+
+    loadResources();
+    return () => { cancelled = true; };
   }, []);
 
   async function handleGenerate() {
@@ -81,6 +139,7 @@ export function CoverLetters() {
     setGenerating(true);
     setGenerated(false);
     setSavedMsg(null);
+    scrollToPreview();
 
     try {
       const result = await coverLetterApi.generate(resumeId, jdId, tone);
@@ -308,11 +367,21 @@ export function CoverLetters() {
                   : <><Sparkles size={16} /> {generated ? 'Regenerate' : 'Generate Letter'}</>
                 }
               </button>
+
+              {/* Mobile-only: jump to preview (hidden once preview is right below on lg) */}
+              {(generated || generating) && (
+                <button
+                  onClick={scrollToPreview}
+                  className="lg:hidden w-full mt-3 text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded-xl py-2.5 flex items-center justify-center gap-1.5 hover:bg-orange-100 transition-colors"
+                >
+                  <ArrowDown size={13} /> Jump to preview
+                </button>
+              )}
             </div>
           </div>
 
           {/* ── RIGHT: Letter Pane ── */}
-          <div className="lg:col-span-8 bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[560px]">
+          <div ref={previewRef} className="scroll-mt-20 lg:col-span-8 bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[560px]">
 
             {/* Generating animation */}
             {generating && (
@@ -344,7 +413,7 @@ export function CoverLetters() {
             {!generating && generated && (
               <div className="flex-1 flex flex-col">
                 {/* Version switcher + tab bar */}
-                {clHistory.length > 1 && (
+                {clHistory.length > 0 && (
                   <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider shrink-0">Letter History:</span>
                     <select

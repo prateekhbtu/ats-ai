@@ -4,10 +4,13 @@ import { Upload, FileText, MoreVertical, Calendar, Trash2, Loader2, AlertCircle,
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { resumeApi } from '../lib/api';
 import { resumeStore, type ResumeRecord } from '../lib/storage';
+import { useToast } from '../contexts/ToastContext';
 
 export function Resumes() {
+  const { toast } = useToast();
   const [resumes, setResumes] = useState<ResumeRecord[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [fetching, setFetching] = useState(true);
   const [removing, setRemoving] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [savingName, setSavingName] = useState(false);
@@ -16,8 +19,40 @@ export function Resumes() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setResumes(resumeStore.list());
-  }, []);
+    let cancelled = false;
+
+    const cached = resumeStore.list();
+    if (cached.length) setResumes(cached);
+
+    (async () => {
+      try {
+        const { resumes: apiResumes } = await resumeApi.list();
+        if (cancelled) return;
+        const localById = new Map(cached.map((r) => [r.id, r]));
+        const merged: ResumeRecord[] = apiResumes.map((r) => {
+          const local = localById.get(r.id);
+          return {
+            id: r.id,
+            original_filename: r.original_filename,
+            candidate_name: r.candidate_name ?? local?.candidate_name,
+            file_url: r.file_url ?? local?.file_url,
+            created_at: r.created_at,
+            ats_score: local?.ats_score,
+          };
+        });
+        resumeStore.setAll(merged);
+        setResumes(merged);
+      } catch (err) {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : 'Failed to load resumes from server.';
+        toast(msg, 'error');
+      } finally {
+        if (!cancelled) setFetching(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [toast]);
 
   async function handleUpload(file: File) {
     if (!file) return;
@@ -152,7 +187,12 @@ export function Resumes() {
           <span className="text-xs text-gray-400 font-medium">{resumes.length} file{resumes.length !== 1 ? 's' : ''}</span>
         </div>
 
-        {resumes.length === 0 ? (
+        {fetching && resumes.length === 0 ? (
+          <div className="py-16 flex flex-col items-center text-center px-6">
+            <Loader2 size={24} className="animate-spin text-gray-400 mb-3" />
+            <p className="text-gray-500 text-sm">Loading your resumes…</p>
+          </div>
+        ) : resumes.length === 0 ? (
           <div className="py-16 flex flex-col items-center text-center px-6">
             <div className="w-14 h-14 rounded-2xl bg-gray-100 text-gray-400 flex items-center justify-center mb-4">
               <FileText size={24} />

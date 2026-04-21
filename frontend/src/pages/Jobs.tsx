@@ -4,12 +4,15 @@ import { Briefcase, ExternalLink, Trash2, Loader2, AlertCircle, Tag, BarChart2, 
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { jdApi, type JdExtractedData } from '../lib/api';
 import { jdStore, type JdRecord } from '../lib/storage';
+import { useToast } from '../contexts/ToastContext';
 
 export function Jobs() {
+  const { toast } = useToast();
   const [jobs, setJobs] = useState<JdRecord[]>([]);
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [editingJd, setEditingJd] = useState<JdRecord | null>(null);
@@ -17,16 +20,28 @@ export function Jobs() {
   const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
-    // Load local first for speed
-    setJobs(jdStore.list());
-    // Fetch latest from backend to sync
-    jdApi.list()
-      .then(res => {
+    let cancelled = false;
+
+    const cached = jdStore.list();
+    if (cached.length) setJobs(cached);
+
+    (async () => {
+      try {
+        const res = await jdApi.list();
+        if (cancelled) return;
         jdStore.setAll(res.jds);
         setJobs(res.jds);
-      })
-      .catch(err => console.error('Failed to sync JDs:', err));
-  }, []);
+      } catch (err) {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : 'Failed to load jobs from server.';
+        toast(msg, 'error');
+      } finally {
+        if (!cancelled) setFetching(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [toast]);
 
   async function handleSave() {
     if (!url.trim() && !text.trim()) {
@@ -161,7 +176,12 @@ export function Jobs() {
 
         {/* Saved Jobs */}
         <div className="lg:col-span-2 space-y-4">
-          {jobs.length === 0 ? (
+          {fetching && jobs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-200 shadow-sm text-center px-6">
+              <Loader2 size={24} className="animate-spin text-gray-400 mb-3" />
+              <p className="text-gray-500 text-sm">Loading your saved jobs…</p>
+            </div>
+          ) : jobs.length === 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

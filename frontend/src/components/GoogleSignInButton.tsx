@@ -59,7 +59,7 @@ export function GoogleSignInButton({
   }
 
   return (
-    <div className="w-full [&>div]:w-full [&>div>div]:w-full [&_iframe]:w-full">
+    <div className="w-full flex justify-center [&>div]:w-full [&>div>div]:w-full [&_iframe]:w-full">
       <GoogleLogin
         onSuccess={handleSuccess}
         onError={() =>
@@ -70,7 +70,6 @@ export function GoogleSignInButton({
         shape="rectangular"
         theme="outline"
         logo_alignment="left"
-        width={400}
       />
     </div>
   );
