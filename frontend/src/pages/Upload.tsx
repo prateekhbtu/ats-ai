@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { resumeApi, type StandaloneScoreResult } from '../lib/api';
-import { resumeStore } from '../lib/storage';
 import { useAuth } from '../contexts/AuthContext';
 
 export function Upload() {
@@ -32,20 +31,12 @@ export function Upload() {
     try {
       const res = await resumeApi.upload(file);
       
-      resumeStore.add({
-        id: res.id,
-        original_filename: file.name,
-        file_url: res.file_url ?? null,
-        created_at: new Date().toISOString(),
-      });
-
       // Auto-score
       setScoring(true);
       setUploading(false);
       try {
         const score = await resumeApi.score(res.id);
         setScoreResult(score);
-        resumeStore.update(res.id, { ats_score: score.ats_score });
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'ATS scoring failed.');
       } finally {

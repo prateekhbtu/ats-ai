@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Upload, FileText, MoreVertical, Calendar, Trash2, Loader2, AlertCircle, Edit3, X, Check } from 'lucide-react';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { resumeApi } from '../lib/api';
-import { resumeStore, type ResumeRecord } from '../lib/storage';
+import type { ResumeRecord } from '../lib/storage';
 import { useToast } from '../contexts/ToastContext';
 
 export function Resumes() {
@@ -21,27 +21,18 @@ export function Resumes() {
   useEffect(() => {
     let cancelled = false;
 
-    const cached = resumeStore.list();
-    if (cached.length) setResumes(cached);
-
     (async () => {
       try {
         const { resumes: apiResumes } = await resumeApi.list();
         if (cancelled) return;
-        const localById = new Map(cached.map((r) => [r.id, r]));
-        const merged: ResumeRecord[] = apiResumes.map((r) => {
-          const local = localById.get(r.id);
-          return {
-            id: r.id,
-            original_filename: r.original_filename,
-            candidate_name: r.candidate_name ?? local?.candidate_name,
-            file_url: r.file_url ?? local?.file_url,
-            created_at: r.created_at,
-            ats_score: local?.ats_score,
-          };
-        });
-        resumeStore.setAll(merged);
-        setResumes(merged);
+        const serverResumes: ResumeRecord[] = apiResumes.map((r) => ({
+          id: r.id,
+          original_filename: r.original_filename,
+          candidate_name: r.candidate_name,
+          file_url: r.file_url,
+          created_at: r.created_at,
+        }));
+        setResumes(serverResumes);
       } catch (err) {
         if (cancelled) return;
         const msg = err instanceof Error ? err.message : 'Failed to load resumes from server.';
@@ -70,8 +61,7 @@ export function Resumes() {
         original_filename: file.name,
         created_at: new Date().toISOString(),
       };
-      resumeStore.add(record);
-      setResumes(resumeStore.list());
+      setResumes((prev) => [record, ...prev]);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
     } finally {
@@ -96,8 +86,7 @@ export function Resumes() {
     setRemoving(id);
     try {
       await resumeApi.delete(id);
-      resumeStore.remove(id);
-      setResumes(resumeStore.list());
+      setResumes((prev) => prev.filter((resume) => resume.id !== id));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to delete resume.');
     } finally {
@@ -111,8 +100,9 @@ export function Resumes() {
     setSavingName(true);
     try {
       await resumeApi.updateName(renaming.id, renaming.name);
-      resumeStore.update(renaming.id, { candidate_name: renaming.name });
-      setResumes(resumeStore.list());
+      setResumes((prev) => prev.map((resume) => (
+        resume.id === renaming.id ? { ...resume, candidate_name: renaming.name } : resume
+      )));
       setRenaming(null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to rename resume.');

@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Brain, Loader2, AlertCircle, ChevronDown, ChevronUp,
   Sparkles, Users, Wrench, Lightbulb,
 } from 'lucide-react';
 import { DashboardLayout } from '../layouts/DashboardLayout';
-import { interviewApi, type InterviewQuestion } from '../lib/api';
-import { resumeStore, jdStore, type ResumeRecord, type JdRecord } from '../lib/storage';
+import { interviewApi, resumeApi, jdApi, type InterviewQuestion } from '../lib/api';
+import type { ResumeRecord, JdRecord } from '../lib/storage';
 import { cn } from '../lib/utils';
 import { PaywallModal } from '../components/PaywallModal';
 import { useAiUsage } from '../hooks/useAiUsage';
+import { useToast } from '../contexts/ToastContext';
 
 const CATEGORY_META: Record<InterviewQuestion['category'], { label: string; color: string; icon: React.ElementType }> = {
   technical: { label: 'Technical', color: 'blue', icon: Wrench },
@@ -77,6 +79,9 @@ function QuestionCard({ q, index }: { q: InterviewQuestion; index: number }) {
 }
 
 export function Interview() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { toast } = useToast();
   const [resumes, setResumes] = useState<ResumeRecord[]>([]);
   const [jobs, setJobs] = useState<JdRecord[]>([]);
   const [resumeId, setResumeId] = useState('');
@@ -90,13 +95,86 @@ export function Interview() {
   const { usage, showPaywall, handleAiError, closePaywall, refreshUsage } = useAiUsage();
 
   useEffect(() => {
-    const r = resumeStore.list();
-    const j = jdStore.list();
-    setResumes(r);
-    setJobs(j);
-    if (r.length > 0) setResumeId(r[0].id);
-    if (j.length > 0) setJdId(j[0].id);
-  }, []);
+    let cancelled = false;
+    const preselectedResumeId = searchParams.get('resume') || '';
+    const preselectedJdId = searchParams.get('jd') || '';
+
+    async function loadResources() {
+      let resRes: Awaited<ReturnType<typeof resumeApi.list>> | null = null;
+      let jdRes: Awaited<ReturnType<typeof jdApi.list>> | null = null;
+
+      try {
+        [resRes, jdRes] = await Promise.all([resumeApi.list(), jdApi.list()]);
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : 'Could not load your resumes and jobs.';
+          toast(msg, 'error');
+        }
+        return;
+      }
+
+      if (cancelled) return;
+
+      const serverResumes: ResumeRecord[] = resRes.resumes.map((ar) => ({
+        id: ar.id,
+        original_filename: ar.original_filename,
+        candidate_name: ar.candidate_name,
+        file_url: ar.file_url,
+        created_at: ar.created_at,
+      }));
+      setResumes(serverResumes);
+
+      if (serverResumes.length === 0) {
+        toast('Upload a resume to generate interview questions.', 'info');
+        navigate('/upload');
+        return;
+      }
+
+      const resumeSelection = preselectedResumeId && serverResumes.some(r => r.id === preselectedResumeId)
+        ? preselectedResumeId
+        : serverResumes[0].id;
+      setResumeId(resumeSelection);
+
+      const serverJds = jdRes.jds || [];
+      setJobs(serverJds);
+
+      if (serverJds.length === 0) {
+        toast('Save a job description to generate interview questions.', 'info');
+        navigate('/jobs');
+        return;
+      }
+
+      let jdSelection = serverJds[0].id;
+      if (preselectedJdId) {
+        const existing = serverJds.find(j => j.id === preselectedJdId);
+        if (existing) {
+          jdSelection = existing.id;
+        } else {
+          try {
+            const jd = await jdApi.get(preselectedJdId);
+            const record: JdRecord = {
+              id: jd.id,
+              title: jd.extracted_data.title,
+              company: jd.extracted_data.company,
+              created_at: new Date().toISOString(),
+              url: jd.source_url ?? undefined,
+              extracted_data: jd.extracted_data,
+            };
+            const merged = [record, ...serverJds];
+            setJobs(merged);
+            jdSelection = record.id;
+          } catch {
+            jdSelection = serverJds[0].id;
+          }
+        }
+      }
+
+      setJdId(jdSelection);
+    }
+
+    loadResources();
+    return () => { cancelled = true; };
+  }, [navigate, searchParams, toast]);
 
   async function handleGenerate() {
     if (!resumeId || !jdId) { setError('Please select a resume and a job first.'); return; }

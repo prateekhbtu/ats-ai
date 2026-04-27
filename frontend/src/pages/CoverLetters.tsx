@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft, FileText, Sparkles, Loader2, Download,
   AlertCircle, Edit3, CheckCircle2, RefreshCw, Wand2, Save, ArrowDown,
 } from 'lucide-react';
-import { resumeStore, jdStore, type ResumeRecord, type JdRecord } from '../lib/storage';
+import type { ResumeRecord, JdRecord } from '../lib/storage';
 import { coverLetterApi, resumeApi, jdApi } from '../lib/api';
 import { ExportModal } from '../components/ExportModal';
 import { PaywallModal } from '../components/PaywallModal';
@@ -31,6 +31,7 @@ const SELECT_STYLE = {
 
 export function CoverLetters() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [resumes, setResumes] = useState<ResumeRecord[]>([]);
   const [jobs, setJobs] = useState<JdRecord[]>([]);
 
@@ -78,11 +79,8 @@ export function CoverLetters() {
     let cancelled = false;
 
     async function loadResources() {
-      // Optimistic paint
-      const cachedResumes = resumeStore.list();
-      const cachedJds = jdStore.list();
-      if (cachedResumes.length) setResumes(cachedResumes);
-      if (cachedJds.length) setJobs(cachedJds);
+      const preselectedResumeId = searchParams.get('resume') || '';
+      const preselectedJdId = searchParams.get('jd') || '';
 
       let resRes: Awaited<ReturnType<typeof resumeApi.list>> | null = null;
       let jdRes: Awaited<ReturnType<typeof jdApi.list>> | null = null;
@@ -113,10 +111,12 @@ export function CoverLetters() {
         navigate('/upload');
         return;
       }
-      setResumeId(serverResumes[0].id);
+      const resumeSelection = preselectedResumeId && serverResumes.some(r => r.id === preselectedResumeId)
+        ? preselectedResumeId
+        : serverResumes[0].id;
+      setResumeId(resumeSelection);
 
       const serverJds = jdRes.jds || [];
-      jdStore.setAll(serverJds);
       setJobs(serverJds);
 
       if (serverJds.length === 0) {
@@ -124,12 +124,36 @@ export function CoverLetters() {
         navigate('/jobs');
         return;
       }
-      setJdId(serverJds[0].id);
+      let jdSelection = serverJds[0].id;
+      if (preselectedJdId) {
+        const existing = serverJds.find(j => j.id === preselectedJdId);
+        if (existing) {
+          jdSelection = existing.id;
+        } else {
+          try {
+            const jd = await jdApi.get(preselectedJdId);
+            const record: JdRecord = {
+              id: jd.id,
+              title: jd.extracted_data.title,
+              company: jd.extracted_data.company,
+              created_at: new Date().toISOString(),
+              url: jd.source_url ?? undefined,
+              extracted_data: jd.extracted_data,
+            };
+            const merged = [record, ...serverJds];
+            setJobs(merged);
+            jdSelection = record.id;
+          } catch {
+            jdSelection = serverJds[0].id;
+          }
+        }
+      }
+      setJdId(jdSelection);
     }
 
     loadResources();
     return () => { cancelled = true; };
-  }, []);
+  }, [navigate, searchParams, toast]);
 
   async function handleGenerate() {
     if (!resumeId) { setError('Please select a resume first.'); return; }

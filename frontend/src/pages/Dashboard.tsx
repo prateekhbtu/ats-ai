@@ -7,7 +7,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { resumeApi, versionApi, type Version } from '../lib/api';
-import { resumeStore, type ResumeRecord } from '../lib/storage';
+import type { ResumeRecord } from '../lib/storage';
 
 
 export function Dashboard() {
@@ -33,24 +33,15 @@ export function Dashboard() {
   async function loadResumes() {
     setLoading(true);
     try {
-      // Try loading from backend first
       const { resumes: apiResumes } = await resumeApi.list();
-      const localResumes = resumeStore.list();
-
-      // Merge: use API data but keep local ATS scores
-      const merged = apiResumes.map((r) => {
-        const local = localResumes.find((lr) => lr.id === r.id);
-        return {
-          id: r.id,
-          original_filename: r.original_filename,
-          created_at: r.created_at,
-          ats_score: local?.ats_score,
-        };
-      });
-      setResumes(merged);
+      const serverResumes: ResumeRecord[] = apiResumes.map((r) => ({
+        id: r.id,
+        original_filename: r.original_filename,
+        created_at: r.created_at,
+      }));
+      setResumes(serverResumes);
     } catch {
-      // Fallback to local storage
-      setResumes(resumeStore.list());
+      setError('Failed to load resumes. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -72,14 +63,16 @@ export function Dashboard() {
         original_filename: file.name,
         created_at: new Date().toISOString(),
       };
-      resumeStore.add(record);
+      setResumes((prev) => [record, ...prev]);
 
       // Auto-score
       setScoringId(res.id);
       try {
         const score = await resumeApi.score(res.id);
         record.ats_score = score.ats_score;
-        resumeStore.update(res.id, { ats_score: score.ats_score });
+        setResumes((prev) => prev.map((resume) => (
+          resume.id === res.id ? { ...resume, ats_score: score.ats_score } : resume
+        )));
       } catch { /* score failed, that's ok */ }
       setScoringId(null);
 
@@ -95,8 +88,7 @@ export function Dashboard() {
     setRemoving(id);
     try {
       await resumeApi.delete(id);
-      resumeStore.remove(id);
-      await loadResumes();
+      setResumes((prev) => prev.filter((resume) => resume.id !== id));
       if (selectedResumeId === id) {
         setSelectedResumeId(null);
         setVersions([]);
@@ -113,8 +105,9 @@ export function Dashboard() {
     setError(null);
     try {
       const score = await resumeApi.score(id);
-      resumeStore.update(id, { ats_score: score.ats_score });
-      await loadResumes();
+      setResumes((prev) => prev.map((resume) => (
+        resume.id === id ? { ...resume, ats_score: score.ats_score } : resume
+      )));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Scoring failed.');
     } finally {

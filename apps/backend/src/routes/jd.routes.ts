@@ -55,6 +55,14 @@ jdRoutes.post('/process', llmRateLimiter(), async (c) => {
   return c.json(result, 201);
 });
 
+// GET /api/jd/list
+jdRoutes.get('/list', async (c) => {
+  const userId = c.get('userId');
+  const { listUserJds } = await import('../services/jd-parser.service.js');
+  const jds = await listUserJds(userId, c.env.DATABASE_URL);
+  return c.json({ jds }, 200);
+});
+
 // GET /api/jd/:id
 jdRoutes.get('/:id', async (c) => {
   const jdId = c.req.param('id');
@@ -66,14 +74,6 @@ jdRoutes.get('/:id', async (c) => {
 
   const jd = await getJdById(jdId, userId, c.env.DATABASE_URL);
   return c.json(jd, 200);
-});
-
-// GET /api/jd/list
-jdRoutes.get('/list', async (c) => {
-  const userId = c.get('userId');
-  const { listUserJds } = await import('../services/jd-parser.service.js');
-  const jds = await listUserJds(userId, c.env.DATABASE_URL);
-  return c.json({ jds }, 200);
 });
 
 // DELETE /api/jd/:id

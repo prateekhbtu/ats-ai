@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { History, FileText, ArrowRight, RotateCcw, Loader2, AlertCircle, ChevronDown, Trash2, Eye } from 'lucide-react';
 import { DashboardLayout } from '../layouts/DashboardLayout';
-import { versionApi, type Version } from '../lib/api';
-import { resumeStore, type ResumeRecord } from '../lib/storage';
+import { resumeApi, versionApi, type Version } from '../lib/api';
+import type { ResumeRecord } from '../lib/storage';
 import { ExportModal } from '../components/ExportModal';
 
 export function Versions() {
@@ -19,9 +19,26 @@ export function Versions() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    const list = resumeStore.list();
-    setResumes(list);
-    if (list.length > 0) setSelectedResumeId(list[0].id);
+    let cancelled = false;
+    (async () => {
+      try {
+        const { resumes: apiResumes } = await resumeApi.list();
+        if (cancelled) return;
+        const serverResumes: ResumeRecord[] = apiResumes.map((r) => ({
+          id: r.id,
+          original_filename: r.original_filename,
+          candidate_name: r.candidate_name,
+          file_url: r.file_url,
+          created_at: r.created_at,
+        }));
+        setResumes(serverResumes);
+        if (serverResumes.length > 0) setSelectedResumeId(serverResumes[0].id);
+      } catch (err: unknown) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : 'Failed to load resumes.');
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {

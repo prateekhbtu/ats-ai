@@ -10,7 +10,7 @@ import {
   type UniScoreResult, type EnhancedResumeResult, type ResumeSections,
   type ResumeDetail, type Version, type DiffResult,
 } from '../lib/api';
-import { resumeStore, jdStore, type ResumeRecord, type JdRecord } from '../lib/storage';
+import type { ResumeRecord, JdRecord } from '../lib/storage';
 import { ExportModal } from '../components/ExportModal';
 import { PaywallModal } from '../components/PaywallModal';
 import { useAiUsage } from '../hooks/useAiUsage';
@@ -492,6 +492,7 @@ export function Editor() {
   const navigate = useNavigate();
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const preselectedResumeId = searchParams.get('resume') || '';
+  const preselectedJdId = searchParams.get('jd') || '';
 
   // Resource lists
   const [resumes, setResumes] = useState<ResumeRecord[]>([]);
@@ -535,12 +536,6 @@ export function Editor() {
     let cancelled = false;
 
     async function loadResources() {
-      // Optimistic paint from localStorage
-      const cachedResumes = resumeStore.list();
-      const cachedJds = jdStore.list();
-      if (cachedResumes.length) setResumes(cachedResumes);
-      if (cachedJds.length) setJobs(cachedJds);
-
       let resRes: Awaited<ReturnType<typeof resumeApi.list>> | null = null;
       let jdRes: Awaited<ReturnType<typeof jdApi.list>> | null = null;
       let apiFailed = false;
@@ -557,17 +552,13 @@ export function Editor() {
 
       // Resumes: server is truth
       if (resRes) {
-        const serverResumes: ResumeRecord[] = resRes.resumes.map((ar) => {
-          const local = cachedResumes.find((lr) => lr.id === ar.id);
-          return {
-            id: ar.id,
-            original_filename: ar.original_filename,
-            candidate_name: ar.candidate_name,
-            file_url: ar.file_url,
-            created_at: ar.created_at,
-            ats_score: local?.ats_score,
-          };
-        });
+        const serverResumes: ResumeRecord[] = resRes.resumes.map((ar) => ({
+          id: ar.id,
+          original_filename: ar.original_filename,
+          candidate_name: ar.candidate_name,
+          file_url: ar.file_url,
+          created_at: ar.created_at,
+        }));
         setResumes(serverResumes);
 
         if (serverResumes.length === 0) {
@@ -577,7 +568,11 @@ export function Editor() {
         }
 
         const preselectedExists = preselectedResumeId && serverResumes.some(r => r.id === preselectedResumeId);
-        if (!preselectedExists) setResumeId(serverResumes[0].id);
+        if (preselectedExists) {
+          setResumeId(preselectedResumeId);
+        } else {
+          setResumeId(serverResumes[0].id);
+        }
       } else if (!apiFailed) {
         // API returned nothing unexpectedly
         setResumes([]);
@@ -586,7 +581,6 @@ export function Editor() {
       // JDs: server is truth
       if (jdRes) {
         const serverJds = jdRes.jds || [];
-        jdStore.setAll(serverJds);
         setJobs(serverJds);
 
         if (serverJds.length === 0) {
@@ -594,7 +588,31 @@ export function Editor() {
           navigate('/jobs');
           return;
         }
-        setJdId(serverJds[0].id);
+        let jdSelection = serverJds[0].id;
+        if (preselectedJdId) {
+          const existing = serverJds.find(j => j.id === preselectedJdId);
+          if (existing) {
+            jdSelection = existing.id;
+          } else {
+            try {
+              const jd = await jdApi.get(preselectedJdId);
+              const record: JdRecord = {
+                id: jd.id,
+                title: jd.extracted_data.title,
+                company: jd.extracted_data.company,
+                created_at: new Date().toISOString(),
+                url: jd.source_url ?? undefined,
+                extracted_data: jd.extracted_data,
+              };
+              const merged = [record, ...serverJds];
+              setJobs(merged);
+              jdSelection = record.id;
+            } catch {
+              jdSelection = serverJds[0].id;
+            }
+          }
+        }
+        setJdId(jdSelection);
       }
     }
 

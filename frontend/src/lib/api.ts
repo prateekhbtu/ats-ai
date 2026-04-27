@@ -355,6 +355,8 @@ export const jdApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  get: (id: string) =>
+    request<{ id: string; raw_text: string; extracted_data: JdExtractedData; source_url: string | null }>(`/api/jd/${id}`),
   list: () =>
     request<{ jds: JdRecord[] }>('/api/jd/list'),
   update: (id: string, extracted_data: JdExtractedData) =>

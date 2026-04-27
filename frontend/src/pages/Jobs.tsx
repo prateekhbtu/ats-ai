@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Briefcase, ExternalLink, Trash2, Loader2, AlertCircle, Tag, BarChart2, Edit3, X, Save } from 'lucide-react';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { jdApi, type JdExtractedData } from '../lib/api';
-import { jdStore, type JdRecord } from '../lib/storage';
+import type { JdRecord } from '../lib/storage';
 import { useToast } from '../contexts/ToastContext';
 
 export function Jobs() {
@@ -22,14 +22,10 @@ export function Jobs() {
   useEffect(() => {
     let cancelled = false;
 
-    const cached = jdStore.list();
-    if (cached.length) setJobs(cached);
-
     (async () => {
       try {
         const res = await jdApi.list();
         if (cancelled) return;
-        jdStore.setAll(res.jds);
         setJobs(res.jds);
       } catch (err) {
         if (cancelled) return;
@@ -64,8 +60,7 @@ export function Jobs() {
         url: url.trim() || undefined,
         extracted_data: res.extracted_data,
       };
-      jdStore.add(record);
-      setJobs(jdStore.list());
+      setJobs((prev) => [record, ...prev]);
       setUrl('');
       setText('');
     } catch (err: unknown) {
@@ -77,8 +72,7 @@ export function Jobs() {
 
   async function handleRemove(id: string) {
     // Optimistic delete
-    jdStore.remove(id);
-    setJobs(jdStore.list());
+    setJobs((prev) => prev.filter((job) => job.id !== id));
     try {
       await jdApi.delete(id);
     } catch (err) {
@@ -98,8 +92,7 @@ export function Jobs() {
     try {
       const res = await jdApi.update(editingJd.id, editFormData);
       const updatedJob = { ...editingJd, extracted_data: res.extracted_data, title: res.extracted_data.title, company: res.extracted_data.company };
-      jdStore.update(editingJd.id, updatedJob);
-      setJobs(jdStore.list());
+      setJobs((prev) => prev.map((job) => job.id === editingJd.id ? updatedJob : job));
       setEditingJd(null);
     } catch (err) {
       console.error('Failed to update JD', err);
