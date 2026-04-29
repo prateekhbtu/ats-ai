@@ -38,7 +38,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const toast = useCallback((message: string, variant: ToastVariant = 'info', duration = 4000) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    setItems((prev) => [...prev, { id, message, variant, duration }]);
+    setItems((prev) => {
+      const hasDuplicate = prev.some((item) => item.message === message && item.variant === variant);
+      if (hasDuplicate) return prev;
+      return [...prev, { id, message, variant, duration }];
+    });
   }, []);
 
   return (

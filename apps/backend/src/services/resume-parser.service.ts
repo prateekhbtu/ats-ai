@@ -337,6 +337,15 @@ export async function uploadAndParseResume(
   // ── 3. Parse sections via LLM ────────────────────────────────────
   const sections = await parseResumeSections(rawText, getLlmConfig(env), fileBuffer, extension);
 
+  if (isEmptySections(sections) && rawText.trim().length === 0) {
+    throw new ValidationError('There is nothing in the uploaded document.');
+  }
+
+  const missingRequired = getMissingRequiredSections(sections);
+  if (missingRequired.length > 0) {
+    throw new ValidationError(`Uploaded document is not a resume. Missing required sections: ${missingRequired.join(', ')}.`);
+  }
+
   // ── 4. Store in Neon ─────────────────────────────────────────────
   const defaultCandidateName = fileName.replace(/\.[^/.]+$/, "");
   const resume = await queryOne<ResumeRow>(
@@ -356,6 +365,34 @@ export async function uploadAndParseResume(
     sections,
     raw_text: rawText,
   };
+}
+
+function isEmptySections(sections: ResumeSections): boolean {
+  return !sections.summary
+    && (sections.experience || []).length === 0
+    && (sections.education || []).length === 0
+    && (sections.skills || []).length === 0
+    && (sections.certifications || []).length === 0
+    && (sections.projects || []).length === 0
+    && (sections.other || []).length === 0;
+}
+
+function getMissingRequiredSections(sections: ResumeSections): string[] {
+  const missing: string[] = [];
+  const hasEducation = (sections.education || []).some((edu) =>
+    [edu.degree, edu.institution, edu.year, edu.details].some((v) => v && v.trim().length > 0)
+  );
+  const hasSkills = (sections.skills || []).some((skill) => skill.trim().length > 0);
+  const hasProjects = (sections.projects || []).some((proj) =>
+    [proj.name, proj.description].some((v) => v && v.trim().length > 0)
+    || (proj.technologies || []).length > 0
+  );
+
+  if (!hasEducation) missing.push('Education');
+  if (!hasSkills) missing.push('Skills');
+  if (!hasProjects) missing.push('Projects');
+
+  return missing;
 }
 
 /**

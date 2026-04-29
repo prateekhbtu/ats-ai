@@ -49,7 +49,9 @@ export function Resumes() {
     if (!file) return;
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (!['pdf', 'docx'].includes(ext ?? '')) {
-      setError('Only PDF or DOCX files are supported.');
+      const msg = 'Only PDF or DOCX files are supported.';
+      setError(msg);
+      toast(msg, 'error');
       return;
     }
     setError(null);
@@ -63,7 +65,9 @@ export function Resumes() {
       };
       setResumes((prev) => [record, ...prev]);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
+      const msg = err instanceof Error ? err.message : 'Upload failed. Please try again.';
+      setError(msg);
+      toast(msg, 'error');
     } finally {
       setUploading(false);
     }

@@ -8,10 +8,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { resumeApi, versionApi, type Version } from '../lib/api';
 import type { ResumeRecord } from '../lib/storage';
+import { useToast } from '../contexts/ToastContext';
 
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [resumes, setResumes] = useState<ResumeRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [removing, setRemoving] = useState<string | null>(null);
@@ -51,7 +53,9 @@ export function Dashboard() {
     if (!file) return;
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (!['pdf', 'docx'].includes(ext ?? '')) {
-      setError('Only PDF or DOCX files are supported.');
+      const msg = 'Only PDF or DOCX files are supported.';
+      setError(msg);
+      toast(msg, 'error');
       return;
     }
     setError(null);
@@ -78,7 +82,9 @@ export function Dashboard() {
 
       await loadResumes();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Upload failed.');
+      const msg = err instanceof Error ? err.message : 'Upload failed.';
+      setError(msg);
+      toast(msg, 'error');
     } finally {
       setUploading(false);
     }

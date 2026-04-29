@@ -7,10 +7,12 @@ import {
 import { useNavigate, Link } from 'react-router-dom';
 import { resumeApi, type StandaloneScoreResult } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 
 export function Upload() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [uploading, setUploading] = useState(false);
@@ -23,7 +25,9 @@ export function Upload() {
     if (!file) return;
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (!['pdf', 'docx'].includes(ext ?? '')) {
-      setError('Only PDF or DOCX files are supported.');
+      const msg = 'Only PDF or DOCX files are supported.';
+      setError(msg);
+      toast(msg, 'error');
       return;
     }
     setError(null);
@@ -38,12 +42,16 @@ export function Upload() {
         const score = await resumeApi.score(res.id);
         setScoreResult(score);
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'ATS scoring failed.');
+        const msg = err instanceof Error ? err.message : 'ATS scoring failed.';
+        setError(msg);
+        toast(msg, 'error');
       } finally {
         setScoring(false);
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
+      const msg = err instanceof Error ? err.message : 'Upload failed. Please try again.';
+      setError(msg);
+      toast(msg, 'error');
       setUploading(false);
     }
   }

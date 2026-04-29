@@ -55,7 +55,12 @@ export class LlmError extends AppError {
 }
 
 export function errorHandler(err: Error, c: Context<{ Bindings: Env; Variables: AppVariables }>): Response {
-  console.error(`[Error] ${err.name}: ${err.message}`, err.stack);
+  if (err instanceof AppError) {
+    const log = err.statusCode >= 500 ? console.error : console.warn;
+    log(`[${err.statusCode}] ${err.name}: ${err.message}`);
+  } else {
+    console.error(`[Error] ${err.name}: ${err.message}`, err.stack);
+  }
 
   if (err instanceof AppError) {
     return c.json(
