@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Layout, LayoutGrid, LayoutTemplate, Briefcase, ArrowUpRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { cn } from '../lib/utils';
 
 const templates = [
   { id: 'minimal', title: 'Minimal Clean Design', icon: Layout, desc: 'Whitespace-first, sans-serif, zero-distraction layout for engineering and design roles.' },
   { id: 'modern', title: 'Modern Professional Layout', icon: LayoutGrid, desc: 'Clean, contemporary layouts designed to highlight experience, skills, and impact for modern roles.' },
-  { id: 'creative', title: 'Creative Visual Style', icon: LayoutTemplate, desc: 'Bold color accents and two-column layout for designers, marketers, and creative leaders.' },
+  { id: 'creative', title: 'Creative Visual Style', icon: LayoutTemplate, desc: 'Bold color accents layout for designers, marketers, and creative leaders.' },
   { id: 'ats', title: 'ATS Friendly Format', icon: Layout, desc: 'Stripped-down, single-column format proven to rank highest in applicant tracking systems.' },
   { id: 'corporate', title: 'Professional Corporate Resume', icon: Briefcase, desc: 'Serif headings and conservative typography for finance, consulting, and executive roles.' },
 ];
@@ -89,56 +90,33 @@ function TemplatePreview({ id }: { id: string }) {
 
   if (id === 'creative') {
     return (
-      <div className="w-full h-full bg-white border border-gray-100 shadow-sm rounded-md overflow-hidden flex font-sans">
-        <div className="w-1/3 bg-gradient-to-b from-indigo-600 to-purple-600 p-5 text-white flex flex-col gap-5">
-          <div className="w-14 h-14 rounded-full bg-white/20 border-2 border-white/40 mx-auto" />
-          <div className="text-center">
-            <p className="text-sm font-bold">Kelly K.</p>
-            <p className="text-[9px] opacity-80 mt-1">Creative Director</p>
-          </div>
-          <div>
-            <p className="text-[9px] font-bold tracking-wider uppercase opacity-80 mb-2">Contact</p>
-            <div className="space-y-1.5">
-              <div className="h-1 bg-white/30 rounded" />
-              <div className="h-1 w-3/4 bg-white/30 rounded" />
-              <div className="h-1 w-5/6 bg-white/30 rounded" />
-            </div>
-          </div>
-          <div>
-            <p className="text-[9px] font-bold tracking-wider uppercase opacity-80 mb-2">Skills</p>
-            <div className="space-y-2">
-              {[90, 75, 85].map((v, i) => (
-                <div key={i}>
-                  <div className="h-0.5 w-10 bg-white/40 rounded mb-1" />
-                  <div className="h-1 bg-white/20 rounded overflow-hidden">
-                    <div className="h-full bg-white rounded" style={{ width: `${v}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+      <div className="w-full h-full bg-white border border-gray-100 shadow-sm rounded-md overflow-hidden flex flex-col font-sans">
+        <div className="p-6 border-b border-gray-200">
+          <h4 className="text-2xl font-bold text-gray-900 tracking-tight">Kelly Kennedy</h4>
+          <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider">Creative Director · New York</p>
+          <div className="mt-3 h-0.5 w-16 bg-gray-900" />
         </div>
-        <div className="flex-1 p-5 flex flex-col gap-4">
-          <div>
-            <h4 className="text-xl font-bold text-gray-900">Kelly Kennedy</h4>
-            <div className="flex gap-1 mt-1">
-              <div className="h-0.5 w-6 bg-indigo-600" />
-              <div className="h-0.5 w-4 bg-purple-500" />
-              <div className="h-0.5 w-3 bg-pink-400" />
-            </div>
-          </div>
+        <div className="p-6 flex flex-col gap-4">
           <div className="space-y-1.5">
             <Line />
             <Line w="w-5/6" />
             <Line w="w-4/6" />
           </div>
           <div>
-            <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-2">Experience</p>
+            <p className="text-[10px] font-bold text-gray-900 uppercase tracking-wider mb-2">Experience</p>
             <div className="space-y-1.5">
               <Line w="w-2/3" c="bg-gray-800" h="h-1.5" />
-              <Line w="w-2/5" c="bg-purple-300" h="h-1" />
+              <Line w="w-2/5" c="bg-gray-400" h="h-1" />
               <Line />
               <Line w="w-5/6" />
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-gray-900 uppercase tracking-wider mb-2">Skills</p>
+            <div className="flex flex-wrap gap-1.5">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-4 w-14 bg-gray-100 border border-gray-200 rounded" />
+              ))}
             </div>
           </div>
         </div>
@@ -308,9 +286,12 @@ export function Templates() {
                       <p className="text-gray-500 mt-4 ml-14 leading-relaxed">
                         {tpl.desc}
                       </p>
-                      <button className="mt-4 ml-14 flex items-center gap-2 text-sm font-semibold border-b border-black pb-1 hover:text-gray-600 hover:border-gray-600 transition-colors">
+                      <Link
+                        to="/login"
+                        className="mt-4 ml-14 flex items-center gap-2 text-sm font-semibold border-b border-black pb-1 hover:text-gray-600 hover:border-gray-600 transition-colors"
+                      >
                         Use Template <ArrowUpRight size={16} />
-                      </button>
+                      </Link>
                     </motion.div>
                   )}
                 </AnimatePresence>
